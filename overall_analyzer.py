@@ -61,7 +61,6 @@ def plot_winrate_matrix(summary, width=8, height=6):
     plt.ylabel("Bot")
     plt.xlabel("Enemy Bot")
     plt.tight_layout()
-    # plt.show()
     return fig
 
 
@@ -94,46 +93,6 @@ def plot_time_related(summary, width=8, height=6):
 
         figs.append(fig)
     return figs
-
-    fig = plt.figure(figsize=(width,height))
-    summary["EstimatedDuration"] = (summary["Duration_L"] / summary["Games"])
-
-    for bot in summary["Bot_L"].unique():
-        subset = summary[summary["Bot_L"] == bot]
-        plt.plot(subset["Timer"], subset["EstimatedDuration"], marker="o", label=bot)
-
-    # Titles and subtitles
-    plt.title("Average Match Duration vs Timer Setting\n", fontsize=14, weight='bold')
-
-    plt.xlabel("Timer setting (s)")
-    plt.ylabel("Estimated Match Duration (s)")
-    plt.legend(title="Bot (Left Side)")
-    plt.grid(True, linestyle="--", alpha=0.5)
-
-    unique_timers = sorted(summary["Timer"].unique())
-    plt.xticks(unique_timers, [f"{t}s" for t in unique_timers])
-
-    # Add an explanation box
-    plt.text(
-        0.05, 0.85,
-        "Higher timers don't always lead to longer matches.\n"
-        "Some matchups finish fights early regardless of time limit.",
-        transform=plt.gca().transAxes,
-        fontsize=9,
-        bbox=dict(facecolor='lightyellow', alpha=0.7, edgecolor='gold', boxstyle="round,pad=0.4")
-    )
-
-    # Caption
-    plt.figtext(
-        0.5, 0.02,
-        "Figure: Each line shows the estimated average match duration (Action_Taken per 10 iteration x ActInterval) "
-        "for different timer settings.",
-        ha="center", fontsize=8, color="dimgray"
-    )
-
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    # plt.show()
-    return fig
 
 def plot_action_win_related(summary, width=8, height=6):
     # Step 1: Compute average actions per game (as before)
@@ -168,7 +127,6 @@ def plot_action_win_related(summary, width=8, height=6):
         bbox=dict(facecolor='lightyellow', alpha=0.5, edgecolor='gold', boxstyle="round,pad=0.4")
     )
     
-    # plt.show()
     return fig
 
 def plot_highest_action(summary, width=8, height=6, n_action = 3):
@@ -195,7 +153,6 @@ def plot_highest_action(summary, width=8, height=6, n_action = 3):
     plt.ylabel("Action")
     plt.legend(title="Bot")
     plt.tight_layout()
-    # plt.show()
     return fig
 
 def plot_win_rate_stability_over_timer(summary, width=8, height=6):
@@ -222,7 +179,6 @@ def plot_win_rate_stability_over_timer(summary, width=8, height=6):
     plt.title("Win Rate Stability vs Timer (Heatmap)")
     plt.xlabel("Timer")
     plt.ylabel("Bot")
-    # plt.show()
     return fig
 
 
