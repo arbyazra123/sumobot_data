@@ -6,15 +6,12 @@ CONTAINER_PORT=8501
 
 # Build the Docker image
 build:
-	git fetch
-	git pull
 	docker build -t $(IMAGE_NAME) .
 
-# Create necessary directories and symlinks
+# Refresh
 setup:
-	rm -rf public-html
-	mkdir -p public-html
-	ln -s $(SYMLINK_DIR) public-html
+	git fetch
+	git pull
 
 # Run the container with dynamic volume mounting
 run:
