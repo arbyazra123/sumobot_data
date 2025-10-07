@@ -1,5 +1,5 @@
 # ---- Base image ----
-FROM python:3.10-slim
+FROM python:3.10.16-slim
 
 # ---- Set working directory ----
 WORKDIR /app
@@ -8,7 +8,6 @@ WORKDIR /app
 COPY . /app
 
 # ---- Install dependencies ----
-# If you have requirements.txt
 RUN pip install -r requirements.txt
 
 # ---- Expose Streamlit default port ----
