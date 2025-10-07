@@ -36,6 +36,7 @@ if __name__ == "__main__":
     "\n- Skill\t= Boost, Stone"\
     "\n- Game Iteration\t= 10"\
     "\n\nResulting 384 configuration matchup of each bot (left and right)")
+    st.markdown("Source code: https://github.com/arbyazra123/sumobot_data")
 
     # Summary
     toc.h2("Summary Matchup")
