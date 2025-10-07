@@ -9,8 +9,7 @@ COPY . /app
 
 # ---- Install dependencies ----
 # If you have requirements.txt
-RUN pip install -r requirements.txt \
-    || pip install streamlit pandas numpy matplotlib seaborn
+RUN pip install -r requirements.txt
 
 # ---- Expose Streamlit default port ----
 EXPOSE 8501
