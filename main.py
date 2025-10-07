@@ -1,13 +1,18 @@
+from streamlit_modal import Modal
 import pandas as pd
 import streamlit as st
 
-from performance_chart import (
+from overall_analyzer import (
     plot_winrate_matrix,
     plot_time_related,
     plot_action_win_related,
     plot_highest_action,
     plot_win_rate_stability_over_timer,
     plot_win_rate_with_actinterval
+)
+
+from individual_analyzer import (
+    plot_grouped
 )
 
 
@@ -25,7 +30,6 @@ if __name__ == "__main__":
 /* Each .page class starts a new printed page */
 .page {
     page-break-after: always;
-    margin-bottom: 40px;
 }
 
 /* Optional: make titles more consistent across pages */
@@ -42,17 +46,115 @@ h1, h2, h3 {
     st.markdown("The configurations are:" \
     "\n- Timer\t= 45, 60" \
     "\n- Action Interval\t= 0.1, 0.2" \
-    "\n- Round\t= Best of 1" \
-    "\n- Skill\t= Boost")
+    "\n- Round\t= Best of 1, Best of 3" \
+    "\n- Skill\t= Boost, Stone"\
+    "\n- Game Iteration\t= 10"\
+    "\n\nResulting 384 configuration matchup of each bot (left and right)")
 
     # Summary
-    st.markdown("## Summary")
+    st.markdown("## Summary Matchup")
     st.dataframe(df_sum)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    modal = Modal("Complete Matchup", key="matchup")
+    if st.button("View complete matchup"):
+        modal.open()
+
+    if modal.is_open():
+        with modal.container():
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.markdown("## Individual Reports")
+    st.markdown("Analyze bot agent against its different configurations")
+    st.markdown("Each of report: Win Rate; Collision; Action-Taken; Duration; is calculated with averaging data from matchup (left and right position)")
+
+    # Individual Win Rates
+    st.markdown("### Win Rates")
+    st.markdown("Reports of win rates each of bot")
+    
+    st.markdown("##### Win Rate by Timer")
+    st.pyplot(plot_grouped(df,group_by="Timer",width=width, height=height))
+
+    st.markdown("##### Win Rate by ActInterval")
+    st.pyplot(plot_grouped(df,group_by="ActInterval",width=width, height=height))
+
+    st.markdown("##### Win Rate by Round")
+    st.pyplot(plot_grouped(df,group_by="Round",width=width, height=height))
+
+    st.markdown("##### Win Rate by SkillLeft")
+    st.pyplot(plot_grouped(df,group_by="SkillLeft",width=width, height=height))
+
+    st.markdown("##### Win Rate by SkillRight")
+    st.pyplot(plot_grouped(df,group_by="SkillRight",width=width, height=height))
+    
+    # Individual Action Taken
+    st.markdown("### Action Taken")
+    st.markdown("Reports of action taken from each of bot")
+
+    st.markdown("##### Action Counts by Timer")
+    st.pyplot(plot_grouped(df,key="ActionCounts", group_by="Timer",width=width, height=height))
+
+    st.markdown("##### Action Counts by ActInterval")
+    st.pyplot(plot_grouped(df,key="ActionCounts", group_by="ActInterval",width=width, height=height))
+
+    st.markdown("##### Action Counts by Round")
+    st.pyplot(plot_grouped(df,key="ActionCounts", group_by="Round",width=width, height=height))
+
+    st.markdown("##### Action Counts by SkillLeft")
+    st.pyplot(plot_grouped(df,key="ActionCounts", group_by="SkillLeft",width=width, height=height))
+
+    st.markdown("##### Action Counts by SkillRight")
+    st.pyplot(plot_grouped(df,key="ActionCounts", group_by="SkillRight",width=width, height=height))
+    
+    # Individual Collision
+    st.markdown("### Collisions")
+    st.markdown("Reports of collision made from each of bot")
+
+    st.markdown("##### Collisions by Timer")
+    st.pyplot(plot_grouped(df,key="Collisions", group_by="Timer",width=width, height=height))
+
+    st.markdown("##### Collisions by ActInterval")
+    st.pyplot(plot_grouped(df,key="Collisions", group_by="ActInterval",width=width, height=height))
+
+    st.markdown("##### Collisions by Round")
+    st.pyplot(plot_grouped(df,key="Collisions", group_by="Round",width=width, height=height))
+
+    st.markdown("##### Collisions by SkillLeft")
+    st.pyplot(plot_grouped(df,key="Collisions", group_by="SkillLeft",width=width, height=height))
+
+    st.markdown("##### Collisions by SkillRight")
+    st.pyplot(plot_grouped(df,key="Collisions", group_by="SkillRight",width=width, height=height))
+
+    # Individual Collision
+    st.markdown("### Duration")
+    st.markdown("Reports of action-taken duration produced from each of bot")
+
+    st.markdown("##### Duration by Timer")
+    st.pyplot(plot_grouped(df,key="Duration", group_by="Timer",width=width, height=height))
+
+    st.markdown("##### Duration by ActInterval")
+    st.pyplot(plot_grouped(df,key="Duration", group_by="ActInterval",width=width, height=height))
+
+    st.markdown("##### Duration by Round")
+    st.pyplot(plot_grouped(df,key="Duration", group_by="Round",width=width, height=height))
+
+    st.markdown("##### Duration by SkillLeft")
+    st.pyplot(plot_grouped(df,key="Duration", group_by="SkillLeft",width=width, height=height))
+
+    st.markdown("##### Duration by SkillRight")
+    st.pyplot(plot_grouped(df,key="Duration", group_by="SkillRight",width=width, height=height))
+
+    # st.markdown("### Win Rate by Skill")
+    # st.pyplot(plot_winrate_grouped(df,group_by="Round",width=width, height=height))
+    # st.markdown('</div class="page">', unsafe_allow_html=True)
+
+
+    st.markdown("## Overall Reports")
+    st.markdown("Analyze bot agent facing other agent with similar configurations")
+
     # Win Rate Matrix
     st.markdown('<div class="page">', unsafe_allow_html=True)
-    st.markdown("## Win Rate Matrix")
+    st.markdown("### Win Rate Matrix")
     st.markdown("Shows how often each bot wins against others across different matchups.")
     st.markdown("This is calculated with taking mean of each configuration (10-games iteration matchup) resulting 240 games in total")
     st.pyplot(plot_winrate_matrix(df,width, height))

@@ -6,21 +6,6 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import plotly.io as pio
 
-def export_to_pdf(figures):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-
-    for fig in figures:
-        img_bytes = io.BytesIO()
-        fig.savefig(buffer, format="pdf", bbox_inches="tight")
-        img_bytes.seek(0)
-        c.drawImage(img_bytes, 50, 200, width=500, height=350)
-        c.showPage()
-
-    c.save()
-    buffer.seek(0)
-    return buffer
-
 def get_bot_winrates(summary: pd.DataFrame, bot_name: str):
     """Return aggregated winrates for one bot against all others."""
     left = (
