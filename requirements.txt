@@ -1,0 +1,9 @@
+matplotlib==3.10.6
+numpy==2.3.3
+pandas==2.3.3
+plotly==6.3.0
+reportlab==4.4.4
+seaborn==0.13.2
+streamlit==1.50.0
+streamlit_modal==0.1.2
+Unidecode==1.4.0
