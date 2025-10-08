@@ -16,11 +16,17 @@ from individual_analyzer import (
     plot_grouped
 )
 
+@st.cache_data
+def load_summary_data():
+    df_sum = pd.read_csv("summary_bot.csv").rename(columns={"Duration": "Duration (ms)"})
+    df = pd.read_csv("summary_matchup.csv")
+    return df_sum, df
+
 if __name__ == "__main__":
     toc = stoc()
-    df_sum = pd.read_csv("summary_bot.csv")
+    
+    df_sum,df = load_summary_data()
     df_sum = df_sum.rename(columns={"Duration":"Duration (ms)"})
-    df = pd.read_csv("summary_matchup.csv")
 
     st.set_page_config(page_title="Sumobot Performance Dashboard")
     width = st.sidebar.slider("plot width", 1, 25, 8)

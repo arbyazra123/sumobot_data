@@ -1,7 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import streamlit as st
 
+@st.cache_data
 def plot_grouped(summary, key="WinRate", group_by="ActInterval", width=8, height=6):
     """
     Plot average win rate per bot, grouped by a specific configuration variable.

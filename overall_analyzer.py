@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import plotly.io as pio
+import streamlit as st
+
 
 def get_bot_winrates(summary: pd.DataFrame, bot_name: str):
     """Return aggregated winrates for one bot against all others."""
@@ -50,6 +52,7 @@ def build_winrate_matrix(summary: pd.DataFrame):
     # Fill missing (never faced) with NaN
     return pivot
 
+@st.cache_data
 def plot_winrate_matrix(summary, width=8, height=6):
     fig = plt.figure(figsize=(width, height))
     pivot = build_winrate_matrix(summary)
@@ -63,7 +66,7 @@ def plot_winrate_matrix(summary, width=8, height=6):
     plt.tight_layout()
     return fig
 
-
+@st.cache_data
 def plot_time_related(summary, width=8, height=6):
     figs = []
     # group by ActInterval, Timer, and Bot_L to average duration per bot per timer
@@ -94,6 +97,7 @@ def plot_time_related(summary, width=8, height=6):
         figs.append(fig)
     return figs
 
+@st.cache_data
 def plot_action_win_related(summary, width=8, height=6):
     # Step 1: Compute average actions per game (as before)
     summary["AvgActions_L"] = summary["ActionCounts_L"] / summary["Games"]
@@ -129,6 +133,7 @@ def plot_action_win_related(summary, width=8, height=6):
     
     return fig
 
+@st.cache_data
 def plot_highest_action(summary, width=8, height=6, n_action = 3):
     action_cols = [col for col in summary.columns if col.endswith("_Act_L")]
 
@@ -155,6 +160,7 @@ def plot_highest_action(summary, width=8, height=6, n_action = 3):
     plt.tight_layout()
     return fig
 
+@st.cache_data
 def plot_win_rate_stability_over_timer(summary, width=8, height=6):
     # Melt the WinRate columns so both sides are in one column
     df_melted = summary.melt(
@@ -181,7 +187,7 @@ def plot_win_rate_stability_over_timer(summary, width=8, height=6):
     plt.ylabel("Bot")
     return fig
 
-
+@st.cache_data
 def plot_win_rate_with_actinterval(summary, width, height):
     # Optional: make ActInterval numeric
     summary["ActInterval"] = pd.to_numeric(summary["ActInterval"], errors='coerce')
