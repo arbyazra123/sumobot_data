@@ -3,8 +3,7 @@ import os
 import re
 import pandas as pd
 import glob
-
-BASE_DIR = "/Users/defdef/Library/Application Support/DefaultCompany/Sumobot/Simulation"
+from tqdm import tqdm
 
 def check_structure(base_dir):
     if not os.path.exists(base_dir):
@@ -139,11 +138,11 @@ def matches_filters(config, filters):
     return True
 
 
-def generate(filters=None):
+def generate(base_dir, filters=None):
     matchup_data = []
 
-    for matchup_folder in os.listdir(BASE_DIR):
-        matchup_path = os.path.join(BASE_DIR, matchup_folder)
+    for matchup_folder in tqdm(os.listdir(base_dir), desc="Matchups", unit="folder"):
+        matchup_path = os.path.join(base_dir, matchup_folder)
         if not os.path.isdir(matchup_path):
             continue
 
@@ -158,22 +157,17 @@ def generate(filters=None):
             if not os.path.isdir(config_path):
                 continue
 
-            # Parse config
             config = parse_config_name(config_folder)
-            
-
             if not matches_filters(config, filters):
                 continue
 
-            print(f"CONFIG {config}")
-            
-            # 🔍 find the first (and only) CSV file inside
+            # find the first (and only) CSV file inside
             csv_files = glob.glob(os.path.join(config_path, "*.csv"))
             if not csv_files:
-                continue  # skip if none
+                continue
 
-            log_path = csv_files[0]  # take the first one
-            print(f"Processing: {bot_a} vs {bot_b} | {config_folder} | {os.path.basename(log_path)}")
+            log_path = csv_files[0]
+            print(f"Processing: {bot_a} vs {bot_b} | {config_folder} | {os.path.basename(log_path)}", end="\r", flush=True)
 
             df_games = process_log(log_path, bot_a, bot_b, config_folder)
             matchup_data.append(df_games)
@@ -253,5 +247,5 @@ def generate(filters=None):
     bot_summary["WinRate"] = bot_summary["TotalWins"] / bot_summary["TotalGames"]
     bot_summary.to_csv("summary_bot.csv", index=False)
 
-    print("✅ Done! Created summary_matchup.csv and summary_bot.csv")
+    print("Done! Created summary_matchup.csv and summary_bot.csv")
     return matchup_summary, bot_summary
