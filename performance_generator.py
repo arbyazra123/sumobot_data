@@ -1,4 +1,5 @@
 
+import gc
 import math
 import os
 import re
@@ -68,7 +69,7 @@ def get_action_counts(df, actions):
 
 
 
-def process_log(csv_path, bot_a, bot_b, config_name):
+def process_log(csv_path, bot_a, bot_b, config_name, chunksize=100000):
     dtypes = {
         "GameIndex": "int32",
         "Actor": "int8",
@@ -77,59 +78,58 @@ def process_log(csv_path, bot_a, bot_b, config_name):
         "Duration": "float32",
         "GameWinner": "int8"
     }
-    df = pd.read_csv(csv_path,dtype=dtypes, engine="pyarrow")
 
     parsed = parse_config_name_cached(config_name)
     game_metrics = []
 
-    # Precompute reusable masks
-    is_action = (df["Category"] == "Action") & (df["State"] != 2)
-    is_collision = (df["Category"] == "Collision") & (df["Target"].notna()) & (df["State"] != 2)
+    # Read CSV in chunks
+    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
+        # Precompute reusable masks per chunk
+        is_action = (chunk["Category"] == "Action") & (chunk["State"] != 2)
+        is_collision = (chunk["Category"] == "Collision") & (chunk["Target"].notna()) & (chunk["State"] != 2)
 
-    # Iterate by group
-    for game_id, gdf in df.groupby("GameIndex"):
-        winner = gdf["GameWinner"].iloc[0]
+        # Iterate by group
+        for game_id, gdf in chunk.groupby("GameIndex"):
+            winner = gdf["GameWinner"].iloc[0]
 
-        # Actor masks per group
-        L = gdf["Actor"] == 0
-        R = gdf["Actor"] == 1
+            L = gdf["Actor"] == 0
+            R = gdf["Actor"] == 1
 
-        # Use masks efficiently (vectorized)
-        duration_L = gdf.loc[L & is_action, "Duration"].sum()
-        duration_R = gdf.loc[R & is_action, "Duration"].sum()
+            duration_L = gdf.loc[L & is_action, "Duration"].sum()
+            duration_R = gdf.loc[R & is_action, "Duration"].sum()
 
-        actionsL = gdf.loc[L & is_action]
-        actionsR = gdf.loc[R & is_action]
+            actionsL = gdf.loc[L & is_action]
+            actionsR = gdf.loc[R & is_action]
 
-        counts = get_action_counts(gdf, ["Accelerate", "TurnLeft", "TurnRight", "Dash", "SkillBoost", "SkillStone"])
+            counts = get_action_counts(gdf, ["Accelerate", "TurnLeft", "TurnRight", "Dash", "SkillBoost", "SkillStone"])
 
-        collisionsL = (is_collision & L).sum()
-        collisionsR = (is_collision & R).sum()
+            collisionsL = (is_collision & L).sum()
+            collisionsR = (is_collision & R).sum()
 
-        metrics = {
-            "GameIndex": game_id,
-            "Winner": winner,
-            "Duration_L": duration_L,
-            "Duration_R": duration_R,
-            "ActionCounts_L": len(actionsL),
-            "ActionCounts_R": len(actionsR),
-            "TotalActions": len(actionsL) + len(actionsR),
-            "Collisions_L": collisionsL,
-            "Collisions_R": collisionsR,
-            "Bot_L": bot_a,
-            "Bot_R": bot_b,
-            "Timer": parsed.get("Timer"),
-            "ActInterval": parsed.get("ActInterval"),
-            "Round": parsed.get("Round"),
-            "SkillLeft": parsed.get("SkillLeft"),
-            "SkillRight": parsed.get("SkillRight"),
-        }
+            metrics = {
+                "GameIndex": game_id,
+                "Winner": winner,
+                "Duration_L": duration_L,
+                "Duration_R": duration_R,
+                "ActionCounts_L": len(actionsL),
+                "ActionCounts_R": len(actionsR),
+                "TotalActions": len(actionsL) + len(actionsR),
+                "Collisions_L": collisionsL,
+                "Collisions_R": collisionsR,
+                "Bot_L": bot_a,
+                "Bot_R": bot_b,
+                "Timer": parsed.get("Timer"),
+                "ActInterval": parsed.get("ActInterval"),
+                "Round": parsed.get("Round"),
+                "SkillLeft": parsed.get("SkillLeft"),
+                "SkillRight": parsed.get("SkillRight"),
+            }
 
-        for name, (left_count, right_count) in counts.items():
-            metrics[f"{name}_Act_L"] = left_count
-            metrics[f"{name}_Act_R"] = right_count
+            for name, (left_count, right_count) in counts.items():
+                metrics[f"{name}_Act_L"] = left_count
+                metrics[f"{name}_Act_R"] = right_count
 
-        game_metrics.append(metrics)
+            game_metrics.append(metrics)
 
     return pd.DataFrame(game_metrics)
 
@@ -149,12 +149,26 @@ def matches_filters(config, filters):
     return True
 
 
-def batch(base_dir, filters = None, batch_size = 5):
+def batch(base_dir, filters=None, batch_size=5, checkpoint_dir="batched"):
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    
     matchup_folders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
     total_batches = math.ceil(len(matchup_folders) / batch_size)
     matchup_data = []
 
+    # Determine which batches have already been processed
+    processed_batches = set()
+    for f in os.listdir(checkpoint_dir):
+        match = re.match(r"batch_(\d+)\.csv", f)
+        if match:
+            processed_batches.add(int(match.group(1)))
+
     for batch_idx in range(total_batches):
+        # Skip batches that are already saved
+        if (batch_idx + 1) in processed_batches:
+            print(f"Skipping batch {batch_idx + 1} (already processed)")
+            continue
+
         batch = matchup_folders[batch_idx * batch_size : (batch_idx + 1) * batch_size]
         print(f"\nBatch {batch_idx + 1}/{total_batches} ({len(batch)} matchups)")
 
@@ -182,15 +196,24 @@ def batch(base_dir, filters = None, batch_size = 5):
                 log_path = csv_files[0]
                 tqdm.write(f"Processing: {bot_a} vs {bot_b} | {config_folder}")
 
-                df_games = process_log(log_path, bot_a, bot_b, config_folder)
+                try:
+                    df_games = process_log(log_path, bot_a, bot_b, config_folder)
+                except Exception as e:
+                    print(f"Error processing {log_path}: {e}")
+                    exit()
+
                 matchup_data.append(df_games)
 
+        # Save batch checkpoint
         if matchup_data:
             batch_df = pd.concat(matchup_data, ignore_index=True)
-            batch_path = f"batched/batch_{batch_idx + 1:02d}.csv"
+            batch_path = os.path.join(checkpoint_dir, f"batch_{batch_idx + 1:02d}.csv")
             batch_df.to_csv(batch_path, index=False)
             print(f"\nSaved {batch_path} ({len(batch_df)} rows)")
             matchup_data.clear()
+            del batch_df
+            gc.collect()
+
 
 def generate():
     all_games = pd.concat([pd.read_csv(f) for f in glob.glob("batched/*.csv")], ignore_index=True)
