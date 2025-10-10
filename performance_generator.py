@@ -7,6 +7,7 @@ import pandas as pd
 import glob
 from tqdm import tqdm
 from functools import lru_cache
+from dask import dataframe as df1
 
 def check_structure(base_dir):
     if not os.path.exists(base_dir):
@@ -74,7 +75,7 @@ def process_log(csv_path, bot_a, bot_b, config_name, chunksize=100000):
     game_metrics = []
 
     # Read CSV in chunks
-    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
+    for chunk in df1.read_csv(csv_path, chunksize=chunksize):
         # Precompute reusable masks per chunk
         is_action = (chunk["Category"] == "Action") & (chunk["State"] != 2)
         is_collision = (chunk["Category"] == "Collision") & (chunk["Target"].notna()) & (chunk["State"] != 2)
@@ -205,9 +206,13 @@ def batch(base_dir, filters=None, batch_size=5, checkpoint_dir="batched"):
             del batch_df
             gc.collect()
 
-
-def generate():
-    all_games = pd.concat([pd.read_csv(f) for f in glob.glob("batched/*.csv")], ignore_index=True)
+def generate(is_parquet=False):
+    if is_parquet:
+        all_files = glob.glob("batched/*.parquet")
+        all_games = pd.concat([pd.read_parquet(f) for f in all_files], ignore_index=True)
+    else:
+        all_games = pd.concat([pd.read_csv(f) for f in glob.glob("batched/*.csv")], ignore_index=True)
+    
 
     group_cols = ["Bot_L", "Bot_R", "Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
 
