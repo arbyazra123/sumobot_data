@@ -1,3 +1,4 @@
+import time
 from performance_generator import batch, generate
 
 BASE_DIR = "/Users/defdef/Library/Application Support/DefaultCompany/Sumobot/Simulation"

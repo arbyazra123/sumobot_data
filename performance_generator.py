@@ -5,6 +5,7 @@ import re
 import pandas as pd
 import glob
 from tqdm import tqdm
+from functools import lru_cache
 
 def check_structure(base_dir):
     if not os.path.exists(base_dir):
@@ -27,6 +28,10 @@ def check_structure(base_dir):
         if configs:
             sample_log = os.path.join(first_matchup, configs[0], "log.csv")
             print(f"\n📝 Sample log path: {sample_log} | Exists? {os.path.exists(sample_log)}")
+
+@lru_cache(maxsize=None)
+def parse_config_name_cached(name):
+    return parse_config_name(name)
 
 def parse_config_name(config_name: str):
     """
@@ -53,62 +58,66 @@ def parse_config_name(config_name: str):
             config[k] = float(v)
     return config
 
-def get_action_counts(gdf, actions):
-    """Return dict of {action: (count_left, count_right)}."""
-    counts = {}
-    for name in actions:
-        left = gdf.query('Category == "Action" and Actor == 0 and Name == @name and State != 2').shape[0]
-        right = gdf.query('Category == "Action" and Actor == 1 and Name == @name and State != 2').shape[0]
-        counts[name] = (left, right)
-    return counts
+def get_action_counts(df, actions):
+    result = {}
+    for act in actions:
+        left = ((df["Actor"] == 0) & (df["Name"] == act) & (df["State"] != 2)).sum()
+        right = ((df["Actor"] == 1) & (df["Name"] == act) & (df["State"] != 2)).sum()
+        result[act] = (left, right)
+    return result
+
 
 
 def process_log(csv_path, bot_a, bot_b, config_name):
-    """Process one log.csv and return per-game metrics DataFrame."""
-    df = pd.read_csv(csv_path)
+    dtypes = {
+        "GameIndex": "int32",
+        "Actor": "int8",
+        "Category": "category",
+        "State": "int8",
+        "Duration": "float32",
+        "GameWinner": "int8"
+    }
+    df = pd.read_csv(csv_path,dtype=dtypes, engine="pyarrow")
 
-    parsed = parse_config_name(config_name)
-    
-    # Group by game index
+    parsed = parse_config_name_cached(config_name)
     game_metrics = []
+
+    # Precompute reusable masks
+    is_action = (df["Category"] == "Action") & (df["State"] != 2)
+    is_collision = (df["Category"] == "Collision") & (df["Target"].notna()) & (df["State"] != 2)
+
+    # Iterate by group
     for game_id, gdf in df.groupby("GameIndex"):
         winner = gdf["GameWinner"].iloc[0]
 
-        # Duration (action)
-        duration_L = gdf[(gdf["Actor"] == 0) & (gdf["Category"] == "Action") & (gdf["State"] != 2)]["Duration"].sum()
-        duration_R = gdf[(gdf["Actor"] == 1) & (gdf["Category"] == "Action") & (gdf["State"] != 2)]["Duration"].sum()
+        # Actor masks per group
+        L = gdf["Actor"] == 0
+        R = gdf["Actor"] == 1
 
-        # Count actions
-        actionsL = gdf[(gdf["Category"] == "Action") & (gdf["Actor"] == 0) & (gdf["State"] != 2)]
-        actionsR = gdf[(gdf["Category"] == "Action") & (gdf["Actor"] == 1) & (gdf["State"] != 2)]
-        actions = ["Accelerate", "TurnLeft", "TurnRight", "Dash", "SkillBoost", "SkillStone"]
-        counts = get_action_counts(gdf, actions)
+        # Use masks efficiently (vectorized)
+        duration_L = gdf.loc[L & is_action, "Duration"].sum()
+        duration_R = gdf.loc[R & is_action, "Duration"].sum()
 
-        # Count collisions
-        collisionsL = gdf[
-            (gdf["Category"] == "Collision")
-            & (gdf["Target"].notna()) & (gdf["Actor"]== 0) & (gdf["State"] != 2)
-        ].shape[0]
+        actionsL = gdf.loc[L & is_action]
+        actionsR = gdf.loc[R & is_action]
 
-        collisionsR = gdf[
-            (gdf["Category"] == "Collision")
-            & (gdf["Target"].notna()) & (gdf["Actor"]== 1) & (gdf["State"] != 2)
-        ].shape[0]
+        counts = get_action_counts(gdf, ["Accelerate", "TurnLeft", "TurnRight", "Dash", "SkillBoost", "SkillStone"])
+
+        collisionsL = (is_collision & L).sum()
+        collisionsR = (is_collision & R).sum()
 
         metrics = {
             "GameIndex": game_id,
             "Winner": winner,
             "Duration_L": duration_L,
             "Duration_R": duration_R,
-            "ActionCounts_L": actionsL.shape[0],
-            "ActionCounts_R": actionsR.shape[0],
-            "TotalActions": (actionsL.shape[0] + actionsR.shape[0]),
+            "ActionCounts_L": len(actionsL),
+            "ActionCounts_R": len(actionsR),
+            "TotalActions": len(actionsL) + len(actionsR),
             "Collisions_L": collisionsL,
             "Collisions_R": collisionsR,
             "Bot_L": bot_a,
             "Bot_R": bot_b,
-
-            ## Config
             "Timer": parsed.get("Timer"),
             "ActInterval": parsed.get("ActInterval"),
             "Round": parsed.get("Round"),
@@ -116,13 +125,14 @@ def process_log(csv_path, bot_a, bot_b, config_name):
             "SkillRight": parsed.get("SkillRight"),
         }
 
-        # Add all per-action counts (L/R) automatically
         for name, (left_count, right_count) in counts.items():
             metrics[f"{name}_Act_L"] = left_count
             metrics[f"{name}_Act_R"] = right_count
 
         game_metrics.append(metrics)
+
     return pd.DataFrame(game_metrics)
+
 
 def matches_filters(config, filters):
     if not filters:
