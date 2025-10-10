@@ -70,15 +70,6 @@ def get_action_counts(df, actions):
 
 
 def process_log(csv_path, bot_a, bot_b, config_name, chunksize=100000):
-    dtypes = {
-        "GameIndex": "int32",
-        "Actor": "int8",
-        "Category": "category",
-        "State": "int8",
-        "Duration": "float32",
-        "GameWinner": "int8"
-    }
-
     parsed = parse_config_name_cached(config_name)
     game_metrics = []
 
