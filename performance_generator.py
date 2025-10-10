@@ -139,7 +139,7 @@ def matches_filters(config, filters):
     return True
 
 
-def generate(base_dir, filters = None, batch_size = 5):
+def batch(base_dir, filters = None, batch_size = 5):
     matchup_folders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
     total_batches = math.ceil(len(matchup_folders) / batch_size)
     matchup_data = []
@@ -175,8 +175,15 @@ def generate(base_dir, filters = None, batch_size = 5):
                 df_games = process_log(log_path, bot_a, bot_b, config_folder)
                 matchup_data.append(df_games)
 
-    # Merge all results
-    all_games = pd.concat(matchup_data, ignore_index=True)
+        if matchup_data:
+            batch_df = pd.concat(matchup_data, ignore_index=True)
+            batch_path = f"batched/batch_{batch_idx + 1:02d}.csv"
+            batch_df.to_csv(batch_path, index=False)
+            print(f"\nSaved {batch_path} ({len(batch_df)} rows)")
+            matchup_data.clear()
+
+def generate():
+    all_games = pd.concat([pd.read_csv(f) for f in glob.glob("batched/*.csv")], ignore_index=True)
 
     group_cols = ["Bot_L", "Bot_R", "Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
 
