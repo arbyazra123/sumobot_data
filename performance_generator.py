@@ -1,4 +1,5 @@
 
+import math
 import os
 import re
 import pandas as pd
@@ -138,39 +139,41 @@ def matches_filters(config, filters):
     return True
 
 
-def generate(base_dir, filters=None):
+def generate(base_dir, filters = None, batch_size = 5):
+    matchup_folders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
+    total_batches = math.ceil(len(matchup_folders) / batch_size)
     matchup_data = []
 
-    for matchup_folder in tqdm(os.listdir(base_dir), desc="Matchups", unit="folder"):
-        matchup_path = os.path.join(base_dir, matchup_folder)
-        if not os.path.isdir(matchup_path):
-            continue
+    for batch_idx in range(total_batches):
+        batch = matchup_folders[batch_idx * batch_size : (batch_idx + 1) * batch_size]
+        print(f"\nBatch {batch_idx + 1}/{total_batches} ({len(batch)} matchups)")
 
-        # Parse bot names from folder (e.g. Bot_A_vs_Bot_B)
-        match = re.match(r"(.+)_vs_(.+)", matchup_folder)
-        if not match:
-            continue
-        bot_a, bot_b = match.groups()
+        for matchup_folder in tqdm(batch, desc=f"Batch {batch_idx + 1}", unit="matchup", leave=False):
+            matchup_path = os.path.join(base_dir, matchup_folder)
 
-        for config_folder in os.listdir(matchup_path):
-            config_path = os.path.join(matchup_path, config_folder)
-            if not os.path.isdir(config_path):
+            match = re.match(r"(.+)_vs_(.+)", matchup_folder)
+            if not match:
                 continue
+            bot_a, bot_b = match.groups()
 
-            config = parse_config_name(config_folder)
-            if not matches_filters(config, filters):
-                continue
+            for config_folder in os.listdir(matchup_path):
+                config_path = os.path.join(matchup_path, config_folder)
+                if not os.path.isdir(config_path):
+                    continue
 
-            # find the first (and only) CSV file inside
-            csv_files = glob.glob(os.path.join(config_path, "*.csv"))
-            if not csv_files:
-                continue
+                config = parse_config_name(config_folder)
+                if not matches_filters(config, filters):
+                    continue
 
-            log_path = csv_files[0]
-            print(f"Processing: {bot_a} vs {bot_b} | {config_folder} | {os.path.basename(log_path)}", end="\r", flush=True)
+                csv_files = glob.glob(os.path.join(config_path, "*.csv"))
+                if not csv_files:
+                    continue
 
-            df_games = process_log(log_path, bot_a, bot_b, config_folder)
-            matchup_data.append(df_games)
+                log_path = csv_files[0]
+                tqdm.write(f"Processing: {bot_a} vs {bot_b} | {config_folder}")
+
+                df_games = process_log(log_path, bot_a, bot_b, config_folder)
+                matchup_data.append(df_games)
 
     # Merge all results
     all_games = pd.concat(matchup_data, ignore_index=True)
