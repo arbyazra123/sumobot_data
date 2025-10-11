@@ -12,7 +12,7 @@ BASE_DIR = "/Users/defdef/Library/Application Support/DefaultCompany/Sumobot/Sim
 # }
 filters = None
 batch_size = 5
-chunksize = 50_000
+chunksize = 10_000
 
 batch(BASE_DIR, filters, batch_size, chunksize)
 # batch_parquet(BASE_DIR, filters, batch_size, chunksize)
