@@ -3,6 +3,8 @@ import gc
 import math
 import os
 import re
+import subprocess
+import sys
 import pandas as pd
 import glob
 from tqdm import tqdm
@@ -140,71 +142,89 @@ def matches_filters(config, filters):
     return True
 
 
-def batch(base_dir, filters=None, batch_size=5, checkpoint_dir="batched", chunksize=50_000):
-    try:
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        
-        matchup_folders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
-        total_batches = math.ceil(len(matchup_folders) / batch_size)
-        matchup_data = []
+def batch(base_dir, filters=None, batch_size=5, checkpoint_dir="batched", chunksize=50_000, sub_process=True):
+    # try:
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    
+    matchup_folders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
+    total_batches = math.ceil(len(matchup_folders) / batch_size)
+    matchup_data = []
 
-        # Determine which batches have already been processed
-        processed_batches = set()
-        for f in os.listdir(checkpoint_dir):
-            match = re.match(r"batch_(\d+)\.csv", f)
-            if match:
-                processed_batches.add(int(match.group(1)))
+    # Determine which batches have already been processed
+    processed_batches = set()
+    for f in os.listdir(checkpoint_dir):
+        match = re.match(r"batch_(\d+)\.csv", f)
+        if match:
+            processed_batches.add(int(match.group(1)))
 
-        for batch_idx in range(total_batches):
-            # Skip batches that are already saved
-            if (batch_idx + 1) in processed_batches:
-                print(f"Skipping batch {batch_idx + 1} (already processed)")
+    for batch_idx in range(total_batches):
+        # Skip batches that are already saved
+        if (batch_idx + 1) in processed_batches:
+            print(f"Skipping batch {batch_idx + 1} (already processed)")
+            continue
+
+        batch = matchup_folders[batch_idx * batch_size : (batch_idx + 1) * batch_size]
+        print(f"\nBatch {batch_idx + 1}/{total_batches} ({len(batch)} matchups)")
+
+        for matchup_folder in tqdm(batch, desc=f"Batch {batch_idx + 1}", unit="matchup", leave=False):
+            matchup_path = os.path.join(base_dir, matchup_folder)
+
+            match = re.match(r"(.+)_vs_(.+)", matchup_folder)
+            if not match:
                 continue
+            bot_a, bot_b = match.groups()
 
-            batch = matchup_folders[batch_idx * batch_size : (batch_idx + 1) * batch_size]
-            print(f"\nBatch {batch_idx + 1}/{total_batches} ({len(batch)} matchups)")
-
-            for matchup_folder in tqdm(batch, desc=f"Batch {batch_idx + 1}", unit="matchup", leave=False):
-                matchup_path = os.path.join(base_dir, matchup_folder)
-
-                match = re.match(r"(.+)_vs_(.+)", matchup_folder)
-                if not match:
+            for config_folder in os.listdir(matchup_path):
+                config_path = os.path.join(matchup_path, config_folder)
+                if not os.path.isdir(config_path):
                     continue
-                bot_a, bot_b = match.groups()
 
-                for config_folder in os.listdir(matchup_path):
-                    config_path = os.path.join(matchup_path, config_folder)
-                    if not os.path.isdir(config_path):
+                config = parse_config_name(config_folder)
+                if not matches_filters(config, filters):
+                    continue
+
+                csv_files = glob.glob(os.path.join(config_path, "*.csv"))
+                if not csv_files:
+                    continue
+
+                log_path = csv_files[0]
+
+                with open("processing.log", "a") as f:
+                    f.write(f"{bot_a} vs {bot_b} | {config_folder}\n")
+
+                if sub_process:
+                    # Spawn subprocess safely
+                    result = subprocess.run(
+                        [sys.executable, "process_one.py", log_path, bot_a, bot_b, config_folder, str(chunksize)],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                    )
+
+                    if result.returncode != 0:
+                        print(f"[FAIL] {log_path} (code {result.returncode})")
+                        print(result.stderr)
                         continue
 
-                    config = parse_config_name(config_folder)
-                    if not matches_filters(config, filters):
-                        continue
-
-                    csv_files = glob.glob(os.path.join(config_path, "*.csv"))
-                    if not csv_files:
-                        continue
-
-                    log_path = csv_files[0]
-
-                    with open("processing.log", "a") as f:
-                        f.write(f"{bot_a} vs {bot_b} | {config_folder}\n")
-
+                    processed_path = log_path.replace(".csv", ".processed.csv")
+                    if os.path.exists(processed_path):
+                        df = pd.read_csv(processed_path)
+                        matchup_data.append(df)
+                        os.remove(processed_path)
+                else:
                     df_games = process_log(log_path, bot_a, bot_b, config_folder, chunksize)
                     matchup_data.append(df_games)
 
-            # Save batch checkpoint
-            if matchup_data:
-                batch_df = pd.concat(matchup_data, ignore_index=True)
-                batch_path = os.path.join(checkpoint_dir, f"batch_{batch_idx + 1:02d}.csv")
-                batch_df.to_csv(batch_path, index=False)
-                print(f"\nSaved {batch_path} ({len(batch_df)} rows)")
-                matchup_data.clear()
-                del batch_df
-                gc.collect()
+        # Save batch checkpoint
+        if matchup_data:
+            batch_df = pd.concat(matchup_data, ignore_index=True)
+            batch_path = os.path.join(checkpoint_dir, f"batch_{batch_idx + 1:02d}.csv")
+            batch_df.to_csv(batch_path, index=False)
+            print(f"\nSaved {batch_path} ({len(batch_df)} rows)")
+            matchup_data.clear()
+            del batch_df
+            gc.collect()
 
-    except Exception as e:
-        print(f"Error processing conversion: {e}")
+    # except Exception as e:
+    #     print(f"Error processing conversion: {e}")
 
 def generate(is_parquet=False):
     if is_parquet:
