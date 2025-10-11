@@ -74,7 +74,7 @@ def process_log(csv_path, bot_a, bot_b, config_name, chunksize):
     game_metrics = []
 
     # Read CSV in chunks
-    for chunk in df1.read_csv(csv_path, chunksize=chunksize):
+    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
         # Precompute reusable masks per chunk
         is_action = (chunk["Category"] == "Action") & (chunk["State"] != 2)
         is_collision = (chunk["Category"] == "Collision") & (chunk["Target"].notna()) & (chunk["State"] != 2)
