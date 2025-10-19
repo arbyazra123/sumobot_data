@@ -14,6 +14,6 @@ filters = None
 batch_size = 5
 chunksize = 10_000
 
-batch(BASE_DIR, filters, batch_size, chunksize=chunksize)
+# batch(BASE_DIR, filters, batch_size, chunksize=chunksize)
 # batch_parquet(BASE_DIR, filters, batch_size, chunksize)
-# matchup, bot = generate(is_parquet=False)
+matchup, bot, _ = generate()
