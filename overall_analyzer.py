@@ -1,3 +1,4 @@
+import numpy as np
 import io
 import seaborn as sns
 import pandas as pd
@@ -525,6 +526,7 @@ def plot_surface_interaction(
     kind: str = "heatmap",  # or "surface"
     width: int = 8,
     height: int = 6,
+    ax=None,
 ):
     """
     Cross analysis plot: visualize relationship between (x_col × y_col) vs a metric (key).
@@ -552,7 +554,8 @@ def plot_surface_interaction(
     fig = plt.figure(figsize=(width, height))
 
     
-    ax = fig.add_subplot(111)
+    if ax is None:
+        ax = fig.add_subplot(111)
     sns.heatmap(pivot, annot=True, cmap="Blues", fmt=".2f", ax=ax)
     label = key.replace("_L","")
     ax.set_title(f"{label} Heatmap ({title_bot})")
@@ -635,6 +638,140 @@ def plot_bot_winrate_by_config(
     fig.tight_layout()
     return fig
 
+def plot_multi_surface_interactions(df, bot_name, key="WinRate_L"):
+    pairs = [
+        ("Timer", "ActInterval"),
+        ("Timer", "Round"),
+        ("Timer", "SkillLeft"),
+        ("Timer", "SkillRight"),
+        ("ActInterval", "Round"),
+        ("ActInterval", "SkillLeft"),
+        ("ActInterval", "SkillRight"),
+        ("Round", "SkillLeft"),
+        ("Round", "SkillRight"),
+        ("SkillLeft", "SkillRight"),
+    ]
+    
+    fig, axes = plt.subplots(3, 4, figsize=(18, 12))
+    axes = axes.flatten()
+
+    for i, (x_col, y_col) in enumerate(pairs):
+        ax = axes[i]
+        plot_surface_interaction(df, bot_name=bot_name, key=key, x_col=x_col, y_col=y_col, ax=ax)
+        ax.set_title(f"{x_col} x {y_col}", fontsize=10)
+    
+    # Hide any extra subplots if pairs < grid size
+    for j in range(len(pairs), len(axes)):
+        fig.delaxes(axes[j])
+    
+    fig.suptitle(f"Cross Analysis Win Rate for {bot_name}", fontsize=14)
+    fig.tight_layout()
+    return fig
+
+def plot_cross_matrix(df, bot_name="Bot_NN", key="WinRate_L"):
+    cfg_cols = ["ActInterval", "Round", "SkillLeft", "SkillRight"]
+    
+    # Filter for this bot
+    df_bot = df[df["Bot_L"] == bot_name].copy()
+
+    # Melt configuration columns into a single axis
+    melted = df_bot.melt(
+        id_vars=["Timer", key],
+        value_vars=cfg_cols,
+        var_name="ConfigType",
+        value_name="ConfigValue"
+    )
+
+    # Compute mean win rate by Timer × ConfigType × ConfigValue
+    grouped = (
+        melted.groupby(["Timer", "ConfigType", "ConfigValue"])[key]
+        .mean()
+        .reset_index()
+    )
+
+    # Combine ConfigType + Value into a readable label
+    grouped["Config"] = grouped["ConfigType"] + "=" + grouped["ConfigValue"].astype(str)
+
+    # Pivot for heatmap
+    pivot = grouped.pivot(index="Config", columns="Timer", values=key)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(8, len(pivot) * 0.4 + 2))
+    sns.heatmap(pivot, annot=True, cmap="viridis", fmt=".2f", ax=ax)
+    
+    ax.set_title(f"Cross Analysis of Win Rate vs Timer for {bot_name}")
+    ax.set_xlabel("Timer")
+    ax.set_ylabel("Configuration (Type=Value)")
+
+    fig.tight_layout()
+    return fig
+
+def plot_full_cross_heatmap_half(df, bot_name="Bot_NN", key="WinRate_L", max_labels=40, lower_triangle=True):
+    cfg_cols = ["Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
+    df_bot = df[df["Bot_L"] == bot_name].copy()
+    
+    # Melt configurations
+    melted = df_bot.melt(
+        id_vars=[key],
+        value_vars=cfg_cols,
+        var_name="ConfigType",
+        value_name="ConfigValue"
+    )
+
+    # Cartesian join (self merge)
+    merged = melted.merge(melted, on=key, suffixes=("_X", "_Y"))
+    merged = merged[merged["ConfigType_X"] != merged["ConfigType_Y"]]
+
+    # Aggregate mean WinRate
+    grouped = (
+        merged.groupby(["ConfigType_X", "ConfigValue_X", "ConfigType_Y", "ConfigValue_Y"])[key]
+        .mean()
+        .reset_index()
+    )
+
+    # Label for axes
+    grouped["X"] = grouped["ConfigType_X"] + "=" + grouped["ConfigValue_X"].astype(str)
+    grouped["Y"] = grouped["ConfigType_Y"] + "=" + grouped["ConfigValue_Y"].astype(str)
+
+    # Pivot into matrix
+    pivot = grouped.pivot(index="Y", columns="X", values=key)
+
+    # Drop all-NaN rows and columns
+
+    # Clip to manageable size
+    if len(pivot) > max_labels or len(pivot.columns) > max_labels:
+        pivot = pivot.iloc[:max_labels, :max_labels]
+
+    # Ensure symmetry (optional, if slightly different values occur)
+    pivot = (pivot + pivot.T) / 2
+
+    pivot = pivot.dropna(axis=0, how="all")
+    pivot = pivot.dropna(axis=1, how="all")
+
+    # Build triangular mask
+    # mask = np.triu(np.ones_like(pivot, dtype=bool)) if lower_triangle else np.tril(np.ones_like(pivot, dtype=bool))
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(max(10, len(pivot.columns)*0.4), max(8, len(pivot)*0.3)))
+    sns.heatmap(
+        pivot,
+        cmap="Blues",
+        annot=True,
+        fmt=".2f",
+        # mask=mask,            # ✅ Hide upper (or lower) triangle
+        linewidths=0.5,
+        cbar_kws={'label': 'Win Rate'},
+        ax=ax
+    )
+
+    ax.set_title(f"Cross Configuration Win Rate (Half Matrix) for {bot_name}", fontsize=14, pad=12)
+    ax.set_xlabel("Config X", fontsize=12)
+    ax.set_ylabel("Config Y", fontsize=12)
+    ax.tick_params(axis="x", rotation=45, labelsize=9)
+    ax.tick_params(axis="y", labelsize=9)
+    fig.tight_layout()
+    return fig
+
 
 def show_overall_analysis(df,filters,df_timebins,toc,width,height):
     toc.h2("Overall Reports")
@@ -655,35 +792,9 @@ def show_overall_analysis(df,filters,df_timebins,toc,width,height):
     toc.h3("Win Rate over Action Interval Configuration")
     st.pyplot(plot_bot_winrate_by_config(df,config_col="ActInterval"))
 
-    toc.h3("Win Rate vs (Timer x ActInterval)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="Timer", y_col="ActInterval"))
-    
-    toc.h3("Win Rate vs (Timer x Round)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="Timer", y_col="Round"))
+    toc.h3("Full Configuration Cross Analysis")
+    st.pyplot(plot_full_cross_heatmap_half(df, bot_name="Bot_NN", lower_triangle=True))
 
-    toc.h3("Win Rate vs (Timer x SkillLeft)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="Timer", y_col="SkillLeft"))
-
-    toc.h3("Win Rate vs (Timer x SkillRight)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="Timer", y_col="SkillRight"))
-
-    toc.h3("Win Rate vs (ActInterval x Round)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="ActInterval", y_col="Round"))
-
-    toc.h3("Win Rate vs (ActInterval x SkillLeft)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="ActInterval", y_col="SkillLeft"))
-
-    toc.h3("Win Rate vs (ActInterval x SkillRight)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="ActInterval", y_col="SkillRight"))
-
-    toc.h3("Win Rate vs (Round x SkillLeft)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="Round", y_col="SkillLeft"))
-
-    toc.h3("Win Rate vs (Round x SkillRight)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="Round", y_col="SkillRight"))
-
-    toc.h3("Win Rate vs (SkillLeft x SkillRight)")
-    st.pyplot(plot_surface_interaction(df, key="WinRate_L", x_col="SkillRight", y_col="SkillLeft"))
 
     # toc.h3("Win Rate over SkillLeft Configuration")
     # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))

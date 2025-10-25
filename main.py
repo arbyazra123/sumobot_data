@@ -11,8 +11,6 @@ from individual_analyzer import (
     show_individual_report
 )
 
-
-
 @st.cache_data
 def load_summary_data():
     df_sum = pd.read_csv("summary_bot.csv").rename(columns={"Duration": "Duration (ms)"})
@@ -25,8 +23,6 @@ def load_summary_data():
 
 if __name__ == "__main__":
     toc = stoc()
-
-    
 
     df_sum, df, df_timebins = load_summary_data()
     df_sum = df_sum.rename(columns={"Duration":"Duration (ms)"})
@@ -64,7 +60,7 @@ if __name__ == "__main__":
         with modal.container():
             st.dataframe(df, use_container_width=True, hide_index=True)
 
-    show_individual_report(df,toc,width,height)
+    # show_individual_report(df,toc,width,height)
 
     show_overall_analysis(df,cfg,df_timebins,toc,width,height)
 

@@ -11,6 +11,36 @@ from tqdm import tqdm
 from functools import lru_cache
 import numpy as np
 
+
+def check_game_jsons(base_dir):
+    if not os.path.exists(base_dir):
+        print(f"❌ BASE_DIR does not exist: {base_dir}")
+        return
+
+    print(f"✅ Found BASE_DIR: {base_dir}")
+    subfolders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
+    print(f"📂 Found {len(subfolders)} matchup folders:")
+
+    for matchup in subfolders:
+        matchup_path = os.path.join(base_dir, matchup)
+        configs = [f for f in os.listdir(matchup_path) if os.path.isdir(os.path.join(matchup_path, f))]
+
+        all_ok = True
+        for cfg in configs:
+            cfg_path = os.path.join(matchup_path, cfg)
+            count = sum(
+                os.path.exists(os.path.join(cfg_path, f"game_{i:03}.json"))
+                for i in range(50)
+            )
+            if count != 50:
+                all_ok = False
+                break
+
+        if all_ok:
+            print(f"✅ {matchup}: has all 50 game JSONs in each config")
+        else:
+            print(f"❌ {matchup}: missing one or more game JSONs")
+
 def check_structure(base_dir):
     if not os.path.exists(base_dir):
         print(f"❌ BASE_DIR does not exist: {base_dir}")
