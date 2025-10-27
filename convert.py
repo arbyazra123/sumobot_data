@@ -15,7 +15,7 @@ batch_size = 5
 chunksize = 10_000
 
 
-check_game_jsons(BASE_DIR)
-# batch(BASE_DIR, filters, batch_size, chunksize=chunksize)
+# check_game_jsons(BASE_DIR)
+batch(BASE_DIR, filters, batch_size, chunksize=chunksize)
 # batch_parquet(BASE_DIR, filters, batch_size, chunksize)
 # matchup, bot, _ = generate()

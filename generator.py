@@ -100,7 +100,29 @@ def get_action_counts(df, actions):
         result[act] = (left, right)
     return result
 
+def compute_actual_durations(df):
+    """Compute actual durations per (Actor, Action Name) pair."""
+    df = df[df["Category"] == "Action"].copy()
+    actual_durations = []
 
+    for (actor, name), group in df.groupby(["Actor", "Name"]):
+        group = group.sort_values("UpdatedAt").reset_index(drop=True)
+        start_time = None
+
+        for _, row in group.iterrows():
+            state = row["State"]
+            if state == 0:  # start
+                start_time = row["StartedAt"]
+            elif state == 2 and start_time is not None:
+                end_time = row["UpdatedAt"]
+                actual_durations.append({
+                    "Actor": actor,
+                    "Name": name,
+                    "ActualDuration": end_time - start_time
+                })
+                start_time = None
+
+    return pd.DataFrame(actual_durations)
 
 def process_log(csv_path, bot_a, bot_b, config_name, chunksize, time_bin_size=5):
     parsed = parse_config_name_cached(config_name)
@@ -121,13 +143,29 @@ def process_log(csv_path, bot_a, bot_b, config_name, chunksize, time_bin_size=5)
             L = gdf["Actor"] == 0
             R = gdf["Actor"] == 1
 
-            duration_L = gdf.loc[L & is_action, "Duration"].sum()
-            duration_R = gdf.loc[R & is_action, "Duration"].sum()
-            
-            match_dur = gdf.loc[is_action, "UpdatedAt"].iloc[-1]
+            # Calculate actual action durations
+            actual_df = compute_actual_durations(gdf)
 
-            actionsL = gdf.loc[L & is_action]
+            # Total duration per actor
+            duration_L = actual_df.loc[actual_df["Actor"] == 0, "ActualDuration"].sum()
+            duration_R = actual_df.loc[actual_df["Actor"] == 1, "ActualDuration"].sum()
+            
+            match_dur = gdf["UpdatedAt"].iloc[-1]
+
+            actionsL = gdf.loc[L & is_action]   
             actionsR = gdf.loc[R & is_action]
+
+            per_action_L = (
+                actual_df[actual_df["Actor"] == 0]
+                .groupby("Name")["ActualDuration"].sum()
+                .to_dict()
+            )
+
+            per_action_R = (
+                actual_df[actual_df["Actor"] == 1]
+                .groupby("Name")["ActualDuration"].sum()
+                .to_dict()
+            )
 
             counts = get_action_counts(gdf, ["Accelerate", "TurnLeft", "TurnRight", "Dash", "SkillBoost", "SkillStone"])
 
@@ -157,6 +195,10 @@ def process_log(csv_path, bot_a, bot_b, config_name, chunksize, time_bin_size=5)
             for name, (left_count, right_count) in counts.items():
                 metrics[f"{name}_Act_L"] = left_count
                 metrics[f"{name}_Act_R"] = right_count
+
+            for name in ["Accelerate", "TurnLeft", "TurnRight", "Dash", "SkillBoost", "SkillStone"]:
+                metrics[f"{name}_Dur_L"] = per_action_L.get(name, 0)
+                metrics[f"{name}_Dur_R"] = per_action_R.get(name, 0)
 
             game_metrics.append(metrics)
 
@@ -263,6 +305,7 @@ def batch(base_dir, filters=None, batch_size=5, checkpoint_dir="batched", chunks
                         [sys.executable, "process_one.py", log_path, bot_a, bot_b, config_folder, str(chunksize)],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
                     )
+                
                 if result.returncode != 0:
                     print(f"[FAIL] {log_path} (code {result.returncode})")
                     print(result.stderr)

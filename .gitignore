@@ -4,3 +4,4 @@ batched/*.csv
 batched/*.parquet
 summary_bot.csv
 summary_matchup.csv
+*.log
