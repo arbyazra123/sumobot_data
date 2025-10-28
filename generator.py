@@ -12,7 +12,7 @@ from functools import lru_cache
 import numpy as np
 
 
-def check_game_jsons(base_dir):
+def check_game(base_dir, pattern = "game_{i:30}.json", count=50):
     if not os.path.exists(base_dir):
         print(f"❌ BASE_DIR does not exist: {base_dir}")
         return
@@ -25,21 +25,32 @@ def check_game_jsons(base_dir):
         matchup_path = os.path.join(base_dir, matchup)
         configs = [f for f in os.listdir(matchup_path) if os.path.isdir(os.path.join(matchup_path, f))]
 
-        all_ok = True
+        all_ok = False
         for cfg in configs:
             cfg_path = os.path.join(matchup_path, cfg)
-            count = sum(
-                os.path.exists(os.path.join(cfg_path, f"game_{i:03}.json"))
-                for i in range(50)
-            )
-            if count != 50:
-                all_ok = False
+            if "{i}" in pattern:
+                found = sum(
+                    os.path.exists(os.path.join(cfg_path, pattern.format(i=i)))
+                    for i in range(count)
+                )
+                expected = count
+            else:
+                # just check this single file name or extension
+                if pattern.startswith('.'):
+                    files = [f for f in os.listdir(cfg_path) if f.endswith(pattern)]
+                    found = len(files)
+                else:
+                    found = int(os.path.exists(os.path.join(cfg_path, pattern)))
+                expected = 1
+                
+            if found == expected:
+                all_ok = True
                 break
 
         if all_ok:
-            print(f"✅ {matchup}: has all 50 game JSONs in each config")
+            print(f"✅ {matchup}: has all {count} files of {pattern}")
         else:
-            print(f"❌ {matchup}: missing one or more game JSONs")
+            print(f"❌ {matchup}: missing one or more file {pattern}")
 
 def check_structure(base_dir):
     if not os.path.exists(base_dir):
@@ -48,7 +59,7 @@ def check_structure(base_dir):
 
     print(f"✅ Found BASE_DIR: {base_dir}")
     subfolders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]
-    print(f"📂 Found {len(subfolders)} matchup folders:")
+    print(f"📂 Found {len(subfolders)} folders:")
     for folder in subfolders:
         print(f"   - {folder}")
 
