@@ -15,7 +15,7 @@ from individual_analyzer import (
 def load_summary_data():
     df_sum = pd.read_csv("summary_bot.csv").rename(columns={"Duration": "Duration (ms)"})
     df = pd.read_csv("summary_matchup.csv")
-    df_timebins = pd.read_csv("summary_timebins.csv")
+    df_timebins = pd.read_csv("summary_action_timebins.csv")
     df_sum = df_sum[df_sum["Bot"] != "Bot_FSM"]
     df = df[df["Bot_L"] != "Bot_FSM"]
     df = df[df["Bot_R"] != "Bot_FSM"]
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         with modal.container():
             st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # show_individual_report(df,toc,width,height)
+    show_individual_report(df,toc,width,height)
 
     show_overall_analysis(df,cfg,df_timebins,toc,width,height)
 

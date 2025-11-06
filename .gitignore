@@ -1,7 +1,6 @@
 .DS_Store
 __pycache__
-batched/*.csv
+*.csv
 batched/*.parquet
-summary_bot.csv
-summary_matchup.csv
 *.log
+*.duckdb

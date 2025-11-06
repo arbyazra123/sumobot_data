@@ -773,15 +773,339 @@ def plot_full_cross_heatmap_half(df, bot_name="Bot_NN", key="WinRate_L", max_lab
     return fig
 
 
+def plot_grouped_config_winrates(
+    df: pd.DataFrame,
+    bot_col: str = "Bot_L",
+    metric: str = "WinRate_L",
+    config_cols: list = None,
+    width: int = 10,
+    height: int = 6,
+    title: str = None,
+    ylabel: str = None,
+):
+    """
+    Create a grouped bar chart showing win-rates (or other metrics) grouped by configuration parameters.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Summary dataframe (e.g., matchup_summary)
+    bot_col : str
+        Column name for bots (default: "Bot_L")
+    metric : str
+        Metric to plot (default: "WinRate_L")
+    config_cols : list
+        List of configuration columns to group by (default: ["Timer", "ActInterval", "Round", "SkillLeft"])
+    width : int
+        Figure width
+    height : int
+        Figure height
+    title : str
+        Plot title (optional)
+    ylabel : str
+        Y-axis label (optional)
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+
+    if config_cols is None:
+        config_cols = ["Timer", "ActInterval", "Round", "SkillLeft"]
+
+    # Get unique bots
+    bots = sorted(df[bot_col].unique())
+
+    # Prepare data for plotting
+    plot_data = []
+
+    for config_col in config_cols:
+        # Group by bot and config parameter, calculate mean and std
+        grouped = df.groupby([bot_col, config_col])[metric].agg(['mean', 'std']).reset_index()
+
+        for bot in bots:
+            bot_data = grouped[grouped[bot_col] == bot]
+            if not bot_data.empty:
+                # Take the mean across all values of this config parameter
+                mean_val = bot_data['mean'].mean()
+                std_val = bot_data['std'].mean() if not bot_data['std'].isna().all() else 0
+
+                plot_data.append({
+                    'Bot': bot,
+                    'ConfigType': config_col,
+                    'Mean': mean_val,
+                    'Std': std_val
+                })
+
+    plot_df = pd.DataFrame(plot_data)
+
+    # Create the grouped bar chart
+    fig, ax = plt.subplots(figsize=(width, height))
+
+    # Define colors for each config type
+    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
+    config_colors = {config: colors[i % len(colors)] for i, config in enumerate(config_cols)}
+
+    # Set up bar positions
+    n_bots = len(bots)
+    n_configs = len(config_cols)
+    bar_width = 0.8 / n_configs
+    x_positions = np.arange(n_bots)
+
+    # Plot bars for each config type
+    for i, config in enumerate(config_cols):
+        config_data = plot_df[plot_df['ConfigType'] == config]
+        means = [config_data[config_data['Bot'] == bot]['Mean'].values[0]
+                if len(config_data[config_data['Bot'] == bot]) > 0 else 0
+                for bot in bots]
+        stds = [config_data[config_data['Bot'] == bot]['Std'].values[0]
+               if len(config_data[config_data['Bot'] == bot]) > 0 else 0
+               for bot in bots]
+
+        offset = (i - n_configs/2 + 0.5) * bar_width
+        ax.bar(x_positions + offset, means, bar_width,
+               label=config, color=config_colors[config],
+               yerr=stds, capsize=3, error_kw={'linewidth': 1.5})
+
+    # Customize plot
+    ax.set_xlabel('Bots', fontsize=12)
+    ax.set_ylabel(ylabel if ylabel else metric.replace('_', ' '), fontsize=12)
+    ax.set_title(title if title else f'{metric.replace("_", " ")} grouped by: {", ".join(config_cols)}',
+                fontsize=14)
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(bots)
+    ax.legend(title='Config Type', loc='upper right')
+    ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radial_limit="auto"):
+    """
+    Create a radar chart showing mean action counts per bot.
+
+    Parameters:
+        scale (str): Scale for radial axis (None = linear, "sqrt", "log")
+        radial_limit (str or float):
+                    - "auto": Set max based on 95th percentile (recommended for better spacing)
+                    - "max": Use the absolute max value
+                    - float: Manually set the max radial value
+    """
+    # Get all action columns
+    action_cols = [col for col in df.columns if col.endswith("_Act_L")]
+
+    # Get unique bots
+    bots = sorted(df[bot_col].unique())
+
+    # Calculate mean action counts per bot (raw values)
+    # Merge SkillBoost and SkillStone into single "Skill"
+    bot_data_raw = {}
+    action_names = []
+
+    for bot in bots:
+        bot_df = df[df[bot_col] == bot]
+        means = []
+
+        # Build action list on first iteration
+        if not action_names:
+            for col in action_cols:
+                name = col.replace("_Act_L", "")
+
+                # Skip SkillStone (will be merged with SkillBoost)
+                if name == "SkillStone":
+                    continue
+
+                # Rename SkillBoost to Skill
+                if name == "SkillBoost":
+                    action_names.append("Skill")
+                else:
+                    action_names.append(name)
+
+        # Calculate means with merged skills
+        for col in action_cols:
+            name = col.replace("_Act_L", "")
+
+            if name == "SkillStone":
+                continue  # Skip, already merged
+
+            if name == "SkillBoost":
+                # Merge SkillBoost + SkillStone
+                skill_boost = bot_df[col].mean()
+                skill_stone = bot_df.get("SkillStone_Act_L", bot_df[col] * 0).mean()  # Handle if column doesn't exist
+                means.append(skill_boost + skill_stone)
+            else:
+                means.append(bot_df[col].mean())
+
+        bot_data_raw[bot] = means
+
+    # Transform values based on scale
+    bot_data = {}
+    for bot, values in bot_data_raw.items():
+        if scale == "sqrt":
+            bot_data[bot] = [np.sqrt(v) for v in values]
+        elif scale == "log":
+            bot_data[bot] = [np.log10(v + 1) for v in values]  # +1 to handle zeros
+        else:  # linear / None
+            bot_data[bot] = values
+
+    # Set up radar chart
+    num_vars = len(action_names)
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]  # Complete the circle
+
+    fig, ax = plt.subplots(figsize=(width, height), subplot_kw=dict(projection='polar'))
+
+    # Plot each bot
+    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
+    for i, (bot, values) in enumerate(bot_data.items()):
+        values += values[:1]  # Complete the circle
+        ax.plot(angles, values, 'o-', linewidth=2.5, markersize=8,
+                label=bot, color=colors[i % len(colors)])
+        ax.fill(angles, values, alpha=0.12, color=colors[i % len(colors)])
+
+    # Set labels with better styling
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(action_names, fontsize=11)
+
+    # Set radial limit for better spacing
+    all_values = [v for bot_vals in bot_data.values() for v in bot_vals[:-1]]
+    if radial_limit == "auto":
+        max_val = np.percentile(all_values, 95)  # Use 95th percentile
+        ax.set_ylim(0, max_val * 1.15)  # Add 15% padding
+    elif radial_limit == "max":
+        max_val = max(all_values)
+        ax.set_ylim(0, max_val * 1.1)
+    elif isinstance(radial_limit, (int, float)):
+        ax.set_ylim(0, radial_limit)
+
+    # Add more radial grid lines for better readability
+    ax.yaxis.set_major_locator(plt.MaxNLocator(8))
+    ax.tick_params(axis='y', labelsize=9)
+
+    # Set y-axis label based on scale
+    if scale == "sqrt":
+        ax.set_ylabel('√(Mean Action Count)', labelpad=35, fontsize=11)
+    elif scale == "log":
+        ax.set_ylabel('log₁₀(Mean Action Count + 1)', labelpad=35, fontsize=11)
+    else:
+        ax.set_ylabel('Mean Action Count', labelpad=35, fontsize=11)
+
+    ax.set_title('Actions Behaviour', size=16, pad=20, fontweight='bold')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.25, 1.1), fontsize=10, framealpha=0.9)
+    ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None):
+    """
+    Create a triangular radar chart showing collision outcomes per bot.
+    Three axes: hit (wins), tie (draws), being_hit (losses)
+
+    Parameters:
+        scale (str): Scale for radial axis. Options:
+                    - "linear": Raw values
+                    - "sqrt": Square root scale (recommended - shows all values clearly)
+                    - "log": Logarithmic scale (more aggressive compression)
+    """
+    # Get unique bots
+    bots = sorted(df[bot_col].unique())
+
+    # Calculate collision statistics per bot (raw values)
+    bot_data_raw = {}
+    for bot in bots:
+        # Get data for this bot on left side
+        left_df = df[df[bot_col] == bot]
+
+        # Calculate totals (raw counts)
+        wins = left_df["Collisions_L"].sum()
+        losses = left_df["Collisions_R"].sum()
+        ties = left_df["Collisions_Tie"].sum()
+
+        # Store as a list: [hit, tie, being_hit]
+        bot_data_raw[bot] = [wins, ties, losses]
+
+    # Transform values based on scale
+    bot_data = {}
+    for bot, values in bot_data_raw.items():
+        if scale == "sqrt":
+            bot_data[bot] = [np.sqrt(v) for v in values]
+        elif scale == "log":
+            bot_data[bot] = [np.log10(v + 1) for v in values]  # +1 to handle zeros
+        else:  # linear
+            bot_data[bot] = values
+
+    # Set up triangular radar chart (3 vertices)
+    collision_types = ['hit', 'tie', 'being hit']
+    num_vars = len(collision_types)
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]  # Complete the circle
+
+    fig, ax = plt.subplots(figsize=(width, height), subplot_kw=dict(projection='polar'))
+
+    # Plot each bot
+    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
+    for i, (bot, values) in enumerate(bot_data.items()):
+        values += values[:1]  # Complete the circle
+        ax.plot(angles, values, 'o-', linewidth=2.5, markersize=8,
+                label=bot, color=colors[i % len(colors)])
+        ax.fill(angles, values, alpha=0.12, color=colors[i % len(colors)])
+
+    # Set labels with better styling
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(collision_types, fontsize=11)
+
+    # Add more radial grid lines for better readability
+    ax.yaxis.set_major_locator(plt.MaxNLocator(8))
+    ax.tick_params(axis='y', labelsize=9)
+
+    # Set y-axis label based on scale
+    if scale == "sqrt":
+        ax.set_ylabel('√(Collision Count)', labelpad=35, fontsize=11)
+    elif scale == "log":
+        ax.set_ylabel('log₁₀(Collision Count + 1)', labelpad=35, fontsize=11)
+    else:
+        ax.set_ylabel('Collision Count', labelpad=35, fontsize=11)
+
+    ax.set_title('Collision Behaviour', size=16, pad=20, fontweight='bold')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.25, 1.1), fontsize=10, framealpha=0.9)
+    ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+    fig.tight_layout()
+    return fig
+
+
 def show_overall_analysis(df,filters,df_timebins,toc,width,height):
     toc.h2("Overall Reports")
     st.markdown("Analyze bot agent facing other agent with similar configurations")
+
+    # Action and Collision Behaviour Charts
+    toc.h3("Bot Behaviour Overview")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Actions Behaviour**")
+        st.markdown("Mean action counts per bot across all configurations")
+        st.pyplot(plot_action_radar(df))
+
+    with col2:
+        st.markdown("**Collision Behaviour**")
+        st.markdown("Hit/Being hit/Tie distribution per bot")
+        st.pyplot(plot_collision_triangle(df))
 
     # Win Rate Matrix
     toc.h3("Win Rate Matrix")
     st.markdown("Shows how often each bot wins against others across different matchups.")
     st.markdown("This is calculated with taking mean of each configuration (10-games iteration matchup) resulting 240 games in total")
     st.pyplot(plot_winrate_matrix(df,width, height))
+
+    toc.h3("Win Rate grouped by all configuration")
+    st.pyplot(plot_grouped_config_winrates(df))
+
+    toc.h3("Total Collision grouped by all configuration")
+    st.pyplot(plot_grouped_config_winrates(df,metric="Collisions_L"))
 
     toc.h3("Win Rate over Timer Configuration")
     st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
