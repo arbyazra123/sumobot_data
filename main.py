@@ -16,15 +16,13 @@ def load_summary_data():
     df_sum = pd.read_csv("summary_bot.csv").rename(columns={"Duration": "Duration (ms)"})
     df = pd.read_csv("summary_matchup.csv")
     df_timebins = pd.read_csv("summary_action_timebins.csv")
-    df_sum = df_sum[df_sum["Bot"] != "Bot_FSM"]
-    df = df[df["Bot_L"] != "Bot_FSM"]
-    df = df[df["Bot_R"] != "Bot_FSM"]
-    return df_sum, df, df_timebins
+    df_collision_timebins = pd.read_csv("summary_collision_timebins.csv")
+    return df_sum, df, df_timebins, df_collision_timebins
 
 if __name__ == "__main__":
     toc = stoc()
 
-    df_sum, df, df_timebins = load_summary_data()
+    df_sum, df, df_timebins, df_collision_timebins  = load_summary_data()
     df_sum = df_sum.rename(columns={"Duration":"Duration (ms)"})
 
     st.set_page_config(page_title="Sumobot Performance Dashboard")
@@ -62,7 +60,7 @@ if __name__ == "__main__":
 
     show_individual_report(df,toc,width,height)
 
-    show_overall_analysis(df,cfg,df_timebins,toc,width,height)
+    show_overall_analysis(df,cfg,df_timebins, df_collision_timebins,toc,width,height)
 
     toc.toc()
 

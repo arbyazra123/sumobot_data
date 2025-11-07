@@ -1,6 +1,7 @@
 """
 DuckDB + Polars: Maximum performance version
 Uses DuckDB for reading and Polars for fast DataFrame operations
+Supports GPU acceleration via engine="gpu" parameter
 """
 
 import duckdb
@@ -8,16 +9,28 @@ import os
 import re
 from tqdm import tqdm
 from functools import lru_cache
+import polars as pl
 
+# Check if GPU support is available
+GPU_AVAILABLE = False
 try:
-    import polars as pl
-    print("✅ Using Polars")
-except ImportError:
-    print("❌ Polars not installed. Run: pip install polars")
-    exit(1)
+    # Try a simple GPU operation to check availability
+    pl.LazyFrame({"test": [1]}).collect(engine="gpu")
+    GPU_AVAILABLE = True
+    print("✅ GPU support available - will use GPU acceleration")
+except Exception:
+    print("✅ Using CPU (GPU not available)")
 
 import numpy as np
 import pandas as pd  # Need pandas for pd.cut in time bins
+
+
+def collect_with_gpu(lf):
+    """Helper to collect LazyFrame with GPU if available"""
+    if GPU_AVAILABLE:
+        return lf.collect(engine="gpu")
+    else:
+        return lf.collect()
 
 
 @lru_cache(maxsize=None)
@@ -254,10 +267,15 @@ def process_all_games_sql(db_path="sumobot_data.duckdb"):
         })
 
     config_df = pl.DataFrame(config_data)
-    game_metrics = game_metrics.join(config_df, on='config_name', how='left')
 
-    # Drop config_name column (no longer needed)
-    game_metrics = game_metrics.drop('config_name')
+    # Use lazy frames for GPU acceleration
+    game_metrics_lazy = game_metrics.lazy().join(
+        config_df.lazy(),
+        on='config_name',
+        how='left'
+    ).drop('config_name')
+
+    game_metrics = collect_with_gpu(game_metrics_lazy)
 
     return game_metrics
 
@@ -493,7 +511,7 @@ def compute_collision_time_bins(db_path="sumobot_data.duckdb", time_bin_size=5):
 
 
 def create_summary_matchup(all_games):
-    """Create matchup summary using Polars"""
+    """Create matchup summary using Polars with GPU acceleration"""
     group_cols = ["Bot_L", "Bot_R", "Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
 
     # Find all action-specific columns
@@ -519,55 +537,54 @@ def create_summary_matchup(all_games):
     for col in action_cols:
         agg_list.append(pl.col(col).sum())
 
-    matchup_summary = all_games.group_by(group_cols).agg(agg_list)
+    # Use lazy frames for GPU acceleration
+    matchup_summary_lazy = all_games.lazy().group_by(group_cols).agg(agg_list)
 
     # Add win rates
-    matchup_summary = matchup_summary.with_columns([
+    matchup_summary_lazy = matchup_summary_lazy.with_columns([
         (pl.col("Winner_L") / pl.col("Games")).alias("WinRate_L"),
         (pl.col("Winner_R") / pl.col("Games")).alias("WinRate_R")
     ])
 
+    matchup_summary = collect_with_gpu(matchup_summary_lazy)
+
     # Compute bot rankings based on overall performance
     # Aggregate left bots
-    bot_summary_L = matchup_summary.group_by("Bot_L").agg([
+    bot_summary_L_lazy = matchup_summary.lazy().group_by("Bot_L").agg([
         pl.col("Games").sum().alias("TotalGames"),
         pl.col("Winner_L").sum().alias("TotalWins"),
     ]).rename({"Bot_L": "Bot"})
 
     # Aggregate right bots
-    bot_summary_R = matchup_summary.group_by("Bot_R").agg([
+    bot_summary_R_lazy = matchup_summary.lazy().group_by("Bot_R").agg([
         pl.col("Games").sum().alias("TotalGames"),
         pl.col("Winner_R").sum().alias("TotalWins"),
     ]).rename({"Bot_R": "Bot"})
 
     # Combine and compute ranks
-    bot_ranks = pl.concat([bot_summary_L, bot_summary_R])
-    bot_ranks = bot_ranks.group_by("Bot").agg([
+    bot_ranks_lazy = pl.concat([bot_summary_L_lazy, bot_summary_R_lazy]).group_by("Bot").agg([
         pl.col("TotalGames").sum(),
         pl.col("TotalWins").sum(),
-    ])
-    bot_ranks = bot_ranks.with_columns([
+    ]).with_columns([
         (pl.col("TotalWins") / pl.col("TotalGames")).alias("WinRate")
-    ])
-    bot_ranks = bot_ranks.with_columns([
+    ]).with_columns([
         pl.col("WinRate").rank(descending=True).cast(pl.Int32).alias("Rank")
-    ])
-    bot_ranks = bot_ranks.select(["Bot", "Rank"])
+    ]).select(["Bot", "Rank"])
+
+    bot_ranks = collect_with_gpu(bot_ranks_lazy)
 
     # Join ranks back to matchup summary
-    matchup_summary = matchup_summary.join(
-        bot_ranks.rename({"Bot": "Bot_L", "Rank": "Rank_L"}),
+    matchup_summary_lazy = matchup_summary.lazy().join(
+        bot_ranks.lazy().rename({"Bot": "Bot_L", "Rank": "Rank_L"}),
         on="Bot_L",
         how="left"
-    )
-    matchup_summary = matchup_summary.join(
-        bot_ranks.rename({"Bot": "Bot_R", "Rank": "Rank_R"}),
+    ).join(
+        bot_ranks.lazy().rename({"Bot": "Bot_R", "Rank": "Rank_R"}),
         on="Bot_R",
         how="left"
-    )
+    ).sort(["Bot_L", "Bot_R", "Timer", "ActInterval"])
 
-    # Sort
-    matchup_summary = matchup_summary.sort(["Bot_L", "Bot_R", "Timer", "ActInterval"])
+    matchup_summary = collect_with_gpu(matchup_summary_lazy)
 
     # Save to CSV
     matchup_summary.write_csv("summary_matchup.csv")
@@ -577,9 +594,10 @@ def create_summary_matchup(all_games):
 
 
 def create_summary_bot(matchup_summary):
-    """Create bot summary using Polars"""
+    """Create bot summary using Polars with GPU acceleration"""
 
-    bot_summary_L = matchup_summary.group_by("Bot_L").agg([
+    # Use lazy frames for GPU acceleration
+    bot_summary_L_lazy = matchup_summary.lazy().group_by("Bot_L").agg([
         pl.col("Games").sum().alias("TotalGames"),
         pl.col("Winner_L").sum().alias("TotalWins"),
         pl.col("Duration_L").sum().alias("Duration"),
@@ -588,7 +606,7 @@ def create_summary_bot(matchup_summary):
         pl.col("Collisions_Tie").sum().alias("CollisionsTie"),
     ]).rename({"Bot_L": "Bot"})
 
-    bot_summary_R = matchup_summary.group_by("Bot_R").agg([
+    bot_summary_R_lazy = matchup_summary.lazy().group_by("Bot_R").agg([
         pl.col("Games").sum().alias("TotalGames"),
         pl.col("Winner_R").sum().alias("TotalWins"),
         pl.col("Duration_R").sum().alias("Duration"),
@@ -597,31 +615,21 @@ def create_summary_bot(matchup_summary):
         pl.col("Collisions_Tie").sum().alias("CollisionsTie"),
     ]).rename({"Bot_R": "Bot"})
 
-    # Combine
-    bot_summary = pl.concat([bot_summary_L, bot_summary_R])
-
-    # Aggregate
-    bot_summary = bot_summary.group_by("Bot").agg([
+    # Combine and aggregate
+    bot_summary_lazy = pl.concat([bot_summary_L_lazy, bot_summary_R_lazy]).group_by("Bot").agg([
         pl.col("TotalGames").sum(),
         pl.col("TotalWins").sum(),
         pl.col("Duration").sum(),
         pl.col("TotalActions").sum(),
         pl.col("Collisions").sum(),
         pl.col("CollisionsTie").sum(),
-    ])
-
-    # Compute WinRate
-    bot_summary = bot_summary.with_columns([
+    ]).with_columns([
         (pl.col("TotalWins") / pl.col("TotalGames")).alias("WinRate")
-    ])
-
-    # Compute Rank
-    bot_summary = bot_summary.with_columns([
+    ]).with_columns([
         pl.col("WinRate").rank(descending=True).cast(pl.Int32).alias("Rank")
-    ])
+    ]).sort("Rank")
 
-    # Sort
-    bot_summary = bot_summary.sort("Rank")
+    bot_summary = collect_with_gpu(bot_summary_lazy)
 
     # Save
     bot_summary.write_csv("summary_bot.csv")
@@ -632,20 +640,19 @@ def create_summary_bot(matchup_summary):
 
 def summarize_action_timebins(time_fragment_df):
     """
-    Summarize action time fragment data.
+    Summarize action time fragment data with GPU acceleration.
     Computes mean counts per bot/config/timebin/action.
     """
     print("📊 Summarizing action time-binned data...")
 
-    # Group and compute mean
-    summary = time_fragment_df.group_by(
+    # Use lazy frames for GPU acceleration
+    summary_lazy = time_fragment_df.lazy().group_by(
         ['Bot', 'Timer', 'ActInterval', 'Round', 'TimeBin', 'Action']
     ).agg([
         pl.col('Count').mean().alias('MeanCount')
-    ])
+    ]).sort(['Bot', 'Timer', 'ActInterval', 'Round', 'TimeBin', 'Action'])
 
-    # Sort for readability
-    summary = summary.sort(['Bot', 'Timer', 'ActInterval', 'Round', 'TimeBin', 'Action'])
+    summary = collect_with_gpu(summary_lazy)
 
     # Save CSV
     summary.write_csv("summary_action_timebins.csv")
@@ -656,22 +663,21 @@ def summarize_action_timebins(time_fragment_df):
 
 def create_collision_details(collision_fragment_df):
     """
-    Calculate collision time fragment data.
+    Calculate collision time fragment data with GPU acceleration.
     Aggregates Actor, Target, Tie counts per config/timebin.
     """
     print("📊 Creating collision detail time-binned data...")
 
-    # Group and compute mean for each collision metric
-    summary = collision_fragment_df.group_by(
+    # Use lazy frames for GPU acceleration
+    summary_lazy = collision_fragment_df.lazy().group_by(
         ['Bot_L', 'Bot_R', 'Timer', 'ActInterval', 'Round', 'TimeBin']
     ).agg([
         pl.col('Actor_L').sum().alias('Actor_L'),
         pl.col('Actor_R').sum().alias('Actor_R'),
         pl.col('Tie').sum().alias('Tie'),
-    ])
+    ]).sort(['Bot_L', 'Bot_R', 'Timer', 'ActInterval', 'Round', 'TimeBin'])
 
-    # Sort for readability
-    summary = summary.sort(['Bot_L', 'Bot_R', 'Timer', 'ActInterval', 'Round', 'TimeBin'])
+    summary = collect_with_gpu(summary_lazy)
 
     # Save CSV
     summary.write_csv("collision_details.csv")

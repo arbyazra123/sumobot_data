@@ -1020,12 +1020,12 @@ def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None)
         left_df = df[df[bot_col] == bot]
 
         # Calculate totals (raw counts)
-        wins = left_df["Collisions_L"].sum()
-        losses = left_df["Collisions_R"].sum()
+        hit = left_df["Collisions_L"].sum()
+        being_hit = left_df["Collisions_R"].sum()
         ties = left_df["Collisions_Tie"].sum()
 
         # Store as a list: [hit, tie, being_hit]
-        bot_data_raw[bot] = [wins, ties, losses]
+        bot_data_raw[bot] = [hit, ties, being_hit]
 
     # Transform values based on scale
     bot_data = {}
@@ -1077,7 +1077,134 @@ def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None)
     return fig
 
 
-def show_overall_analysis(df,filters,df_timebins,toc,width,height):
+def plot_collision_timebins_intensity(
+    df,
+    group_by="Bot_L",  # "Bot_L" or "Bot_R"
+    timer=None,
+    act_interval=None,
+    round=None,
+    mode="total",        # "total" | "per_type" | "select"
+    collision_type=None,  # "Actor_L" | "Actor_R" | "Tie" (used when mode == "select")
+    width=10,
+    height=6,
+):
+    """
+    Plot collision intensity over time (with optional timer cutoff).
+
+    Modes:
+      - "total": sum all collision types -> one line per bot pairing
+      - "per_type": show per-collision-type trends; creates one subplot per type (Actor_L, Actor_R, Tie)
+      - "select": plot a single collision_type for all bot pairings
+
+    Args:
+        df: DataFrame from summary_collision_timebins.csv
+        group_by: "Bot_L" or "Bot_R" to group by bot
+        timer: Filter by specific timer value
+        act_interval: Filter by specific action interval
+        round: Filter by specific round
+        mode: Visualization mode
+        collision_type: Which collision type to show (for mode="select")
+        width, height: Figure dimensions
+    """
+
+    # --- Filters ---
+    if timer is not None:
+        df = df[df["Timer"] == timer]
+    if act_interval is not None:
+        df = df[df["ActInterval"] == act_interval]
+    if round is not None:
+        df = df[df["Round"] == round]
+
+    if df.empty:
+        print("⚠️ No data after filtering.")
+        return None
+
+    # --- Preprocess TimeBin ---
+    df = df.copy()
+    df["TimeBin"] = pd.to_numeric(df["TimeBin"], errors="coerce")
+    df = df.dropna(subset=["TimeBin"])
+    df = df.sort_values("TimeBin")
+
+    # --- Helper: apply x-axis cutoff ---
+    def apply_timer_xlim(ax):
+        if timer is not None:
+            ax.set_xlim(0, timer)
+            ax.set_xticks(range(0, int(timer) + 1, max(1, int(timer // 10) or 1)))
+
+    # --- Plot modes ---
+    if mode == "select":
+        if not collision_type:
+            raise ValueError("collision_type must be provided when mode='select'")
+        if collision_type not in ["Actor_L", "Actor_R", "Tie"]:
+            raise ValueError("collision_type must be one of ['Actor_L', 'Actor_R', 'Tie']")
+
+        grouped = df.groupby([group_by, "TimeBin"], as_index=False)[collision_type].mean()
+
+        fig, ax = plt.subplots(figsize=(width, height))
+        sns.lineplot(data=grouped, x="TimeBin", y=collision_type, hue=group_by, marker="o", ax=ax)
+        ax.set_title(f"Mean {collision_type} collisions over time")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Mean Count")
+        ax.grid(True, alpha=0.3)
+        apply_timer_xlim(ax)
+        fig.tight_layout()
+        return fig
+
+    elif mode == "total":
+        # Sum all collision types
+        df["TotalCollisions"] = df["Actor_L"] + df["Actor_R"] + df["Tie"]
+        grouped = df.groupby([group_by, "TimeBin"], as_index=False)["TotalCollisions"].mean()
+
+        fig, ax = plt.subplots(figsize=(width, height))
+        sns.lineplot(data=grouped, x="TimeBin", y="TotalCollisions", hue=group_by, marker="o", ax=ax)
+        ax.set_title("Total collision intensity over time")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Mean Count (summed over collision types)")
+        ax.grid(True, alpha=0.3)
+        apply_timer_xlim(ax)
+        fig.tight_layout()
+        return fig
+
+    elif mode == "per_type":
+        collision_types = ["Actor_L", "Actor_R", "Tie"]
+        n = len(collision_types)
+        fig, axes = plt.subplots(
+            nrows=1,
+            ncols=n,
+            figsize=(width, height),
+            squeeze=False
+        )
+        axes = axes.flatten()
+
+        for i, ctype in enumerate(collision_types):
+            ax = axes[i]
+            sub = df.groupby([group_by, "TimeBin"], as_index=False)[ctype].mean()
+            if sub.empty:
+                ax.set_visible(False)
+                continue
+            sns.lineplot(data=sub, x="TimeBin", y=ctype, hue=group_by, marker="o", ax=ax, legend=(i==0))
+            ax.set_title(ctype)
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Mean Count")
+            ax.grid(True, alpha=0.3)
+            apply_timer_xlim(ax)
+
+        # Add global legend
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(
+            handles, labels, title=group_by,
+            loc="upper center", bbox_to_anchor=(0.5, 0.98),
+            ncol=min(6, len(labels))
+        )
+        fig.suptitle("Per-collision-type intensity over timer")
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        return fig
+
+    else:
+        raise ValueError("mode must be one of ['total','per_type','select']")
+
+
+def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,width,height):
     toc.h2("Overall Reports")
     st.markdown("Analyze bot agent facing other agent with similar configurations")
 
@@ -1151,6 +1278,23 @@ def show_overall_analysis(df,filters,df_timebins,toc,width,height):
     st.pyplot(fig)
 
     fig = plot_timebins_intensity(df_timebins, mode="per_action")
+    st.pyplot(fig)
+
+    for timI in filters["Timer"]:
+        for actI in filters["ActInterval"]:
+
+            toc.h3(f"Collision intensity over Timer={timI}, ActionInterval={actI}")
+            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="total")
+            st.pyplot(fig)
+
+            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="per_type")
+            st.pyplot(fig)
+
+    toc.h3(f"Collision intensity over All Configuration")
+    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total")
+    st.pyplot(fig)
+
+    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type")
     st.pyplot(fig)
 
     # Action vs. Win Relation
