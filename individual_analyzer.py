@@ -107,8 +107,8 @@ def plot_grouped(summary, key="WinRate", group_by="ActInterval", width=10, heigh
                    label=f"{bot} (#{rank})", color=colors[i])
 
             # Plot error band with lighter transparency
-            ax.fill_between(x_values, means - errors, means + errors,
-                          alpha=0.15, color=colors[i])
+            # ax.fill_between(x_values, means - errors, means + errors,
+            #               alpha=0.15, color=colors[i])
 
         ax.set_xlabel(group_by, fontsize=12, fontweight='bold')
         ax.set_ylabel(key, fontsize=12, fontweight='bold')
@@ -146,7 +146,7 @@ def plot_grouped(summary, key="WinRate", group_by="ActInterval", width=10, heigh
     # --- Common styling ---
     ax.set_title(f"{key} grouped by {group_by}", fontsize=14, fontweight='bold', pad=15)
     ax.legend(title="Bot (Rank)" if chart_type == "line" else group_by,
-             loc='best', fontsize=10, framealpha=0.9)
+             loc='upper center', bbox_to_anchor=(0.5, -0.15), fontsize=10, framealpha=0.9, ncol=3)
     ax.grid(True, linestyle="--", alpha=0.5, linewidth=0.8)
     fig.tight_layout()
 

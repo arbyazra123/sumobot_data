@@ -553,36 +553,60 @@ def create_summary_bot(matchup_summary):
     """Create bot summary using Polars with GPU acceleration"""
 
     # Use lazy frames for GPU acceleration
-    bot_summary_L_lazy = matchup_summary.lazy().group_by("Bot_L").agg([
-        pl.col("Games").sum().alias("TotalGames"),
-        pl.col("Winner_L").sum().alias("TotalWins"),
-        pl.col("Duration_L").sum().alias("Duration"),
-        pl.col("ActionCounts_L").sum().alias("TotalActions"),
-        pl.col("Collisions_L").sum().alias("Collisions"),
-        pl.col("Collisions_Tie").sum().alias("CollisionsTie"),
-    ]).rename({"Bot_L": "Bot"})
+    # First, normalize the data so each row represents one bot in one game
+    bot_summary_L_lazy = matchup_summary.lazy().select([
+        pl.col("Bot_L").alias("Bot"),
+        pl.col("Games"),
+        pl.col("Winner_L").alias("Wins"),
+        pl.col("Duration_L").alias("Duration"),
+        pl.col("ActionCounts_L").alias("TotalActions"),
+        pl.col("Collisions_L").alias("Collisions_Own"),
+        pl.col("Collisions_Tie"),
+    ])
 
-    bot_summary_R_lazy = matchup_summary.lazy().group_by("Bot_R").agg([
-        pl.col("Games").sum().alias("TotalGames"),
-        pl.col("Winner_R").sum().alias("TotalWins"),
-        pl.col("Duration_R").sum().alias("Duration"),
-        pl.col("ActionCounts_R").sum().alias("TotalActions"),
-        pl.col("Collisions_R").sum().alias("Collisions"),
-        pl.col("Collisions_Tie").sum().alias("CollisionsTie"),
-    ]).rename({"Bot_R": "Bot"})
+    bot_summary_R_lazy = matchup_summary.lazy().select([
+        pl.col("Bot_R").alias("Bot"),
+        pl.col("Games"),
+        pl.col("Winner_R").alias("Wins"),
+        pl.col("Duration_R").alias("Duration"),
+        pl.col("ActionCounts_R").alias("TotalActions"),
+        pl.col("Collisions_R").alias("Collisions_Own"),
+        pl.col("Collisions_Tie"),
+    ])
 
-    # Combine and aggregate
-    bot_summary_lazy = pl.concat([bot_summary_L_lazy, bot_summary_R_lazy]).group_by("Bot").agg([
-        pl.col("TotalGames").sum(),
-        pl.col("TotalWins").sum(),
-        pl.col("Duration").sum(),
-        pl.col("TotalActions").sum(),
-        pl.col("Collisions").sum(),
-        pl.col("CollisionsTie").sum(),
+    # Combine and calculate per-game averages, then aggregate by bot
+    bot_summary_lazy = pl.concat([bot_summary_L_lazy, bot_summary_R_lazy]).with_columns([
+        # Calculate per-game averages
+        (pl.col("Duration") / pl.col("Games")).alias("Duration_per_game"),
+        (pl.col("TotalActions") / pl.col("Games")).alias("Actions_per_game"),
+        ((pl.col("Collisions_Own") + pl.col("Collisions_Tie")) / pl.col("Games")).alias("Collisions_per_game"),
+        (pl.col("Wins") / pl.col("Games")).alias("WinRate_per_matchup"),
+    ]).group_by("Bot").agg([
+        pl.col("Games").sum().alias("TotalGames"),
+        pl.col("Wins").sum().alias("TotalWins"),
+        pl.col("WinRate_per_matchup").mean().alias("WinRate_mean"),
+        pl.col("WinRate_per_matchup").std().alias("WinRate_std"),
+        pl.col("Duration_per_game").mean().alias("Duration_mean"),
+        pl.col("Duration_per_game").std().alias("Duration_std"),
+        pl.col("Actions_per_game").mean().alias("Actions_mean"),
+        pl.col("Actions_per_game").std().alias("Actions_std"),
+        pl.col("Collisions_per_game").mean().alias("Collisions_mean"),
+        pl.col("Collisions_per_game").std().alias("Collisions_std"),
     ]).with_columns([
-        (pl.col("TotalWins") / pl.col("TotalGames")).alias("WinRate")
+        # Format as "mean (std)" with 2 decimal places
+        (pl.col("WinRate_mean").round(2).cast(pl.Utf8) + " (" + pl.col("WinRate_std").round(2).cast(pl.Utf8) + ")").alias("Win-rate"),
+        (pl.col("Duration_mean").round(2).cast(pl.Utf8) + " (" + pl.col("Duration_std").round(2).cast(pl.Utf8) + ")").alias("Action Duration"),
+        (pl.col("Actions_mean").round(2).cast(pl.Utf8) + " (" + pl.col("Actions_std").round(2).cast(pl.Utf8) + ")").alias("Actions"),
+        (pl.col("Collisions_mean").round(2).cast(pl.Utf8) + " (" + pl.col("Collisions_std").round(2).cast(pl.Utf8) + ")").alias("Collisions"),
     ]).with_columns([
-        pl.col("WinRate").rank(descending=True).cast(pl.Int32).alias("Rank")
+        pl.col("WinRate_mean").rank(descending=True).cast(pl.Int32).alias("Rank"),
+    ]).select([
+        "Rank",
+        "Bot",
+        "Win-rate",
+        "Action Duration",
+        "Actions",
+        "Collisions"
     ]).sort("Rank")
 
     bot_summary = collect_with_gpu(bot_summary_lazy)

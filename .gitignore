@@ -4,3 +4,4 @@ __pycache__
 batched/*.parquet
 *.log
 *.duckdb
+arena_heatmap

@@ -1,4 +1,4 @@
-Bot,TotalGames,TotalWins,Duration,TotalActions,Collisions,CollisionsTie,WinRate,Rank
-Bot_NN,1280,912,28566.58098785379,111382,5585,3410,0.7125,1
-Bot_Primitive,1280,525,25433.3094235666,315015,6740,4008,0.41015625,2
-Bot_BT,1280,426,17392.527348186544,299189,6123,2838,0.3328125,3
+Rank,Bot,Win-rate,Action Duration,Actions,Collisions
+1,Bot_NN,0.71 (0.22),22.32 (19.66),87.02 (58.74),7.03 (4.62)
+2,Bot_Primitive,0.41 (0.26),19.87 (17.07),246.11 (336.54),8.4 (4.88)
+3,Bot_BT,0.33 (0.22),13.59 (14.58),233.74 (304.43),7.0 (4.25)

@@ -2,6 +2,7 @@ from streamlit_modal import Modal
 import pandas as pd
 import streamlit as st
 from stoc import stoc
+import os
 
 from overall_analyzer import (
     show_overall_analysis,
@@ -10,6 +11,8 @@ from overall_analyzer import (
 from individual_analyzer import (
     show_individual_report
 )
+
+from PIL import Image
 
 @st.cache_data
 def load_summary_data():
@@ -58,9 +61,58 @@ if __name__ == "__main__":
         with modal.container():
             st.dataframe(df, use_container_width=True, hide_index=True)
 
-    show_individual_report(df,toc,width,height)
+    # show_overall_analysis(df,cfg,df_timebins, df_collision_timebins,toc,width,height)
 
-    show_overall_analysis(df,cfg,df_timebins, df_collision_timebins,toc,width,height)
+    # show_individual_report(df,toc,width,height)
+
+    # Arena Heatmaps
+    toc.h2("Arena Heatmaps - Bot Movement Analysis")
+    st.markdown("Visualize bot movement patterns across different game phases (Early, Mid, Late)")
+
+    # Check if arena_heatmap directory exists
+    heatmap_dir = "arena_heatmap"
+
+    if os.path.exists(heatmap_dir):
+        # Get all bot directories
+        bot_dirs = sorted([d for d in os.listdir(heatmap_dir)
+                          if os.path.isdir(os.path.join(heatmap_dir, d))])
+
+        if bot_dirs:
+            phase_names = ["Early Game", "Mid Game", "Late Game"]
+
+            # Display heatmaps for each bot
+            for bot_name in bot_dirs:
+                toc.h3(f"{bot_name}")
+                bot_dir = os.path.join(heatmap_dir, bot_name)
+
+                # Create 3 columns for the 3 phases
+                cols = st.columns(3)
+
+                for idx, (col, phase_name) in enumerate(zip(cols, phase_names)):
+                    image_path = os.path.join(bot_dir, f"{idx}.png")
+
+                    with col:
+                        st.markdown(f"**{phase_name}**")
+                        if os.path.exists(image_path):
+                            image = Image.open(image_path)
+                            st.image(image, use_container_width=True)
+                        else:
+                            st.warning(f"Image not found: {idx}.png")
+
+                # Display position distribution
+                dist_path = os.path.join(bot_dir, "position_distribution.png")
+                if os.path.exists(dist_path):
+                    st.markdown("**Position Distribution (X & Y Overlayed)**")
+                    dist_image = Image.open(dist_path)
+                    st.image(dist_image, use_container_width=True)
+
+                st.divider()
+        else:
+            st.warning("No bot heatmaps found in directory")
+            st.info("Run: `python detailed_analyzer.py all` to generate heatmaps")
+    else:
+        st.warning(f"Heatmap directory not found: {heatmap_dir}")
+        st.info("Run: `python detailed_analyzer.py all` to generate heatmaps for all bots")
 
     toc.toc()
 
