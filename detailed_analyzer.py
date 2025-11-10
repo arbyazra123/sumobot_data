@@ -123,7 +123,7 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
         return
 
     x = phase_df["BotPosX"].values
-    y = phase_df["BotPosY"].values
+    y = phase_df["BotPosY"].values - 2  # Shift Y by -2 (start position is at y=2)
 
     # Create 2D kernel density estimation for smooth contours
     if len(x) > 1:
@@ -134,9 +134,9 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
             xy = np.vstack([x, y])
             kde = gaussian_kde(xy)
 
-            # Create grid for evaluation
+            # Create grid for evaluation (Y shifted by -2)
             x_min, x_max = arena_center[0] - arena_radius - 1, arena_center[0] + arena_radius + 1
-            y_min, y_max = arena_center[1] - arena_radius - 1, arena_center[1] + arena_radius + 1
+            y_min, y_max = (arena_center[1] - 2) - arena_radius - 1, (arena_center[1] - 2) + arena_radius + 1
 
             xx, yy = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
             positions = np.vstack([xx.ravel(), yy.ravel()])
@@ -153,8 +153,9 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
             print(f"Warning: KDE failed for {phase_name}, using scatter plot. Error: {e}")
             ax.scatter(x, y, alpha=0.1, s=1, c='green', zorder=1)
 
-    # Draw arena boundary AFTER contours so it appears on top
-    circle = plt.Circle(arena_center, arena_radius,
+    # Draw arena boundary AFTER contours so it appears on top (Y shifted by -2)
+    arena_center_shifted = np.array([arena_center[0], arena_center[1] - 2])
+    circle = plt.Circle(arena_center_shifted, arena_radius,
                        fill=False, edgecolor="red",
                        linewidth=2, linestyle="--", zorder=3)
     ax.add_artist(circle)
@@ -166,7 +167,7 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
     ax.set_aspect("equal", adjustable="box")
 
     ax.set_xlim(arena_center[0] - arena_radius - 1, arena_center[0] + arena_radius + 1)
-    ax.set_ylim(arena_center[1] - arena_radius - 1, arena_center[1] + arena_radius + 1)
+    ax.set_ylim((arena_center[1] - 2) - arena_radius - 1, (arena_center[1] - 2) + arena_radius + 1)
 
     # Add grid
     ax.grid(True, alpha=0.3, zorder=0)
@@ -200,7 +201,7 @@ def plot_position_distribution(df_combined, bot_name, actor_position="both"):
 
     # Plot Y distribution (overlaid, shifted)
     ax.hist(y, bins=100, alpha=0.7, color='red', edgecolor='darkred',
-            label=f'{bot_name} Y (shifted from start)', linewidth=0.5)
+            label=f'{bot_name} Y', linewidth=0.5)
 
     # Customize plot
     position_text = f" ({actor_position} side)" if actor_position != "both" else ""

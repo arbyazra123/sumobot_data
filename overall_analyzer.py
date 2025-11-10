@@ -290,6 +290,19 @@ def plot_timebins_intensity(
     df = df.dropna(subset=["TimeBin"])
     df = df.sort_values("TimeBin")
 
+    # --- Add rank to bot names if group_by is "Bot" ---
+    if group_by == "Bot" and "Rank" in df.columns:
+        # Get rank for each bot
+        rank_map = df.groupby("Bot")["Rank"].first().sort_values().to_dict()
+        df["BotWithRank"] = df["Bot"].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
+        group_by_plot = "BotWithRank"
+        # Sort bots by rank
+        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map[b])
+        bot_order_with_rank = [f"{b} (#{int(rank_map[b])})" for b in bot_order]
+    else:
+        group_by_plot = group_by
+        bot_order_with_rank = None
+
     # --- Helper: apply x-axis cutoff ---
     def apply_timer_xlim(ax):
         if timer is not None:
@@ -304,27 +317,31 @@ def plot_timebins_intensity(
         if df_sel.empty:
             print(f"⚠️ No rows for action '{action_name}' after filtering.")
             return None
-        grouped = df_sel.groupby([group_by, "TimeBin"], as_index=False)["MeanCount"].mean()
+        grouped = df_sel.groupby([group_by_plot, "TimeBin"], as_index=False)["MeanCount"].mean()
 
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y="MeanCount", hue=group_by, marker="o", ax=ax)
+        sns.lineplot(data=grouped, x="TimeBin", y="MeanCount", hue=group_by_plot,
+                    hue_order=bot_order_with_rank, marker="o", ax=ax)
         ax.set_title(f"Mean {action_name} over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count")
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
+        legend_title = "Bot (Rank)" if group_by == "Bot" else group_by
+        ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
         fig.tight_layout()
         return fig
 
     elif mode == "total":
-        grouped = df.groupby([group_by, "TimeBin"], as_index=False)["MeanCount"].mean()
+        grouped = df.groupby([group_by_plot, "TimeBin"], as_index=False)["MeanCount"].mean()
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y="MeanCount", hue=group_by, marker="o", ax=ax)
+        sns.lineplot(data=grouped, x="TimeBin", y="MeanCount", hue=group_by_plot,
+                    hue_order=bot_order_with_rank, marker="o", ax=ax)
         ax.set_title("Total action intensity over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count (summed over actions)")
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
+        legend_title = "Bot (Rank)" if group_by == "Bot" else group_by
+        ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
         fig.tight_layout()
@@ -346,11 +363,12 @@ def plot_timebins_intensity(
         handles, labels = None, None
         for i, action in enumerate(actions):
             ax = axes[i]
-            sub = df[df["Action"] == action].groupby([group_by, "TimeBin"], as_index=False)["MeanCount"].mean()
+            sub = df[df["Action"] == action].groupby([group_by_plot, "TimeBin"], as_index=False)["MeanCount"].mean()
             if sub.empty:
                 ax.set_visible(False)
                 continue
-            sns.lineplot(data=sub, x="TimeBin", y="MeanCount", hue=group_by, marker="o", ax=ax, legend=(i==0))
+            sns.lineplot(data=sub, x="TimeBin", y="MeanCount", hue=group_by_plot,
+                        hue_order=bot_order_with_rank, marker="o", ax=ax, legend=(i==0))
 
             # Capture legend handles from first plot, then remove it
             if i == 0:
@@ -369,8 +387,9 @@ def plot_timebins_intensity(
 
         # Add global legend below
         if handles and labels:
+            legend_title = "Bot (Rank)" if group_by == "Bot" else group_by
             fig.legend(
-                handles, labels, title=group_by,
+                handles, labels, title=legend_title,
                 loc="upper center", bbox_to_anchor=(0.5, -0.02),
                 ncol=min(6, len(labels))
             )
@@ -820,8 +839,14 @@ def plot_grouped_config_winrates(
     matplotlib.figure.Figure
     """
 
-    # Get unique bots
-    bots = sorted(df[bot_col].unique())
+    # Get unique bots and sort by rank
+    rank_col = "Rank_L" if bot_col == "Bot_L" else "Rank_R"
+    if rank_col in df.columns:
+        rank_map = df.groupby(bot_col)[rank_col].first().to_dict()
+        bots = sorted(df[bot_col].unique(), key=lambda b: rank_map.get(b, 9999))
+    else:
+        bots = sorted(df[bot_col].unique())
+        rank_map = {}
 
     # Determine if we need to calculate per-game averages
     per_game_metrics = ["Collisions", "ActionCounts", "Duration", "MatchDur"]
@@ -926,7 +951,12 @@ def plot_grouped_config_winrates(
 
     ax.set_title(plot_title, fontsize=14, fontweight='bold', pad=15)
     ax.set_xticks(x_positions)
-    ax.set_xticklabels(bots)
+    # Create bot labels with rank
+    if rank_map:
+        bot_labels = [f"{bot} (#{int(rank_map[bot])})" for bot in bots]
+    else:
+        bot_labels = bots
+    ax.set_xticklabels(bot_labels, rotation=30, ha='right')
     ax.legend(title=config_col_display, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=min(6, n_configs),
               fontsize=10, framealpha=0.9)
     ax.grid(axis='y', linestyle='--', alpha=0.3)
@@ -949,8 +979,14 @@ def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radia
     # Get all action columns
     action_cols = [col for col in df.columns if col.endswith("_Act_L")]
 
-    # Get unique bots
-    bots = sorted(df[bot_col].unique())
+    # Get unique bots and sort by rank
+    rank_col = "Rank_L" if bot_col == "Bot_L" else "Rank_R"
+    if rank_col in df.columns:
+        rank_map = df.groupby(bot_col)[rank_col].first().to_dict()
+        bots = sorted(df[bot_col].unique(), key=lambda b: rank_map.get(b, 9999))
+    else:
+        bots = sorted(df[bot_col].unique())
+        rank_map = {}
 
     # Calculate mean action counts per bot (raw values)
     # Merge SkillBoost and SkillStone into single "Skill"
@@ -1014,8 +1050,13 @@ def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radia
     colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
     for i, (bot, values) in enumerate(bot_data.items()):
         values += values[:1]  # Complete the circle
+        # Format label with rank if available
+        if rank_map and bot in rank_map:
+            label = f"{bot} (#{int(rank_map[bot])})"
+        else:
+            label = bot
         ax.plot(angles, values, 'o-', linewidth=2.5, markersize=8,
-                label=bot, color=colors[i % len(colors)])
+                label=label, color=colors[i % len(colors)])
         ax.fill(angles, values, alpha=0.12, color=colors[i % len(colors)])
 
     # Set labels with better styling
@@ -1046,7 +1087,8 @@ def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radia
         ax.set_ylabel('Mean Action Count', labelpad=35, fontsize=11)
 
     ax.set_title('Actions Behaviour', size=16, pad=20, fontweight='bold')
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), fontsize=10, framealpha=0.9, ncol=3)
+    legend_title = "Bot (Rank)" if rank_map else "Bot"
+    ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.1), fontsize=10, framealpha=0.9, ncol=3)
     ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
 
     fig.tight_layout()
@@ -1064,8 +1106,14 @@ def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None)
                     - "sqrt": Square root scale (recommended - shows all values clearly)
                     - "log": Logarithmic scale (more aggressive compression)
     """
-    # Get unique bots
-    bots = sorted(df[bot_col].unique())
+    # Get unique bots and sort by rank
+    rank_col = "Rank_L" if bot_col == "Bot_L" else "Rank_R"
+    if rank_col in df.columns:
+        rank_map = df.groupby(bot_col)[rank_col].first().to_dict()
+        bots = sorted(df[bot_col].unique(), key=lambda b: rank_map.get(b, 9999))
+    else:
+        bots = sorted(df[bot_col].unique())
+        rank_map = {}
 
     # Calculate collision statistics per bot (raw values)
     bot_data_raw = {}
@@ -1103,8 +1151,13 @@ def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None)
     colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
     for i, (bot, values) in enumerate(bot_data.items()):
         values += values[:1]  # Complete the circle
+        # Format label with rank if available
+        if rank_map and bot in rank_map:
+            label = f"{bot} (#{int(rank_map[bot])})"
+        else:
+            label = bot
         ax.plot(angles, values, 'o-', linewidth=2.5, markersize=8,
-                label=bot, color=colors[i % len(colors)])
+                label=label, color=colors[i % len(colors)])
         ax.fill(angles, values, alpha=0.12, color=colors[i % len(colors)])
 
     # Set labels with better styling
@@ -1124,7 +1177,8 @@ def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None)
         ax.set_ylabel('Collision Count', labelpad=35, fontsize=11)
 
     ax.set_title('Collision Behaviour', size=16, pad=20, fontweight='bold')
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), fontsize=10, framealpha=0.9, ncol=3)
+    legend_title = "Bot (Rank)" if rank_map else "Bot"
+    ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.1), fontsize=10, framealpha=0.9, ncol=3)
     ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
 
     fig.tight_layout()
@@ -1155,8 +1209,14 @@ def plot_action_distribution_stacked(df, bot_col="Bot_L", width=10, height=6, no
         'Skill': ['SkillBoost_Act_L', 'SkillStone_Act_L']
     }
 
-    # Get unique bots
-    bots = sorted(df[bot_col].unique())
+    # Get unique bots and sort by rank
+    rank_col = "Rank_L" if bot_col == "Bot_L" else "Rank_R"
+    if rank_col in df.columns:
+        rank_map = df.groupby(bot_col)[rank_col].first().to_dict()
+        bots = sorted(df[bot_col].unique(), key=lambda b: rank_map.get(b, 9999))
+    else:
+        bots = sorted(df[bot_col].unique())
+        rank_map = {}
 
     # Prepare data for stacking
     action_data = {action: [] for action in action_mapping.keys()}
@@ -1193,14 +1253,23 @@ def plot_action_distribution_stacked(df, bot_col="Bot_L", width=10, height=6, no
         'Skill': '#1f77b4'          # Blue
     }
 
+    # Create bot labels with rank
+    if rank_map:
+        bot_labels = [f"{bot} (#{int(rank_map[bot])})" for bot in bots]
+    else:
+        bot_labels = bots
+
     # Plot stacked bars
     bottom = np.zeros(len(bots))
+    x_pos = np.arange(len(bots))
     for action in action_mapping.keys():
-        ax.bar(bots, data_df[action], bottom=bottom,
+        ax.bar(x_pos, data_df[action], bottom=bottom,
                label=action, color=colors[action], width=0.6)
         bottom += data_df[action]
 
     # Customize plot
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(bot_labels)
     ax.set_xlabel('Bots', fontsize=12, fontweight='bold')
 
     if normalize:
@@ -1219,7 +1288,7 @@ def plot_action_distribution_stacked(df, bot_col="Bot_L", width=10, height=6, no
 
     # Rotate x-axis labels if many bots
     if len(bots) > 5:
-        ax.set_xticklabels(bots, rotation=30, ha='right')
+        plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
     fig.tight_layout()
     return fig
@@ -1240,8 +1309,14 @@ def plot_collision_distribution_stacked(df, bot_col="Bot_L", width=10, height=6,
     Returns:
         matplotlib.figure.Figure
     """
-    # Get unique bots
-    bots = sorted(df[bot_col].unique())
+    # Get unique bots and sort by rank
+    rank_col = "Rank_L" if bot_col == "Bot_L" else "Rank_R"
+    if rank_col in df.columns:
+        rank_map = df.groupby(bot_col)[rank_col].first().to_dict()
+        bots = sorted(df[bot_col].unique(), key=lambda b: rank_map.get(b, 9999))
+    else:
+        bots = sorted(df[bot_col].unique())
+        rank_map = {}
 
     # Prepare data for stacking
     collision_data = {
@@ -1279,14 +1354,23 @@ def plot_collision_distribution_stacked(df, bot_col="Bot_L", width=10, height=6,
         'Tie': '#ff7f0e'          # Orange (ties)
     }
 
+    # Create bot labels with rank
+    if rank_map:
+        bot_labels = [f"{bot} (#{int(rank_map[bot])})" for bot in bots]
+    else:
+        bot_labels = bots
+
     # Plot stacked bars
     bottom = np.zeros(len(bots))
+    x_pos = np.arange(len(bots))
     for collision_type in collision_data.keys():
-        ax.bar(bots, data_df[collision_type], bottom=bottom,
+        ax.bar(x_pos, data_df[collision_type], bottom=bottom,
                label=collision_type, color=colors[collision_type], width=0.6)
         bottom += data_df[collision_type]
 
     # Customize plot
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(bot_labels)
     ax.set_xlabel('Bots', fontsize=12, fontweight='bold')
 
     if normalize:
@@ -1305,7 +1389,7 @@ def plot_collision_distribution_stacked(df, bot_col="Bot_L", width=10, height=6,
 
     # Rotate x-axis labels if many bots
     if len(bots) > 5:
-        ax.set_xticklabels(bots, rotation=30, ha='right')
+        plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
     fig.tight_layout()
     return fig
@@ -1359,6 +1443,20 @@ def plot_collision_timebins_intensity(
     df = df.dropna(subset=["TimeBin"])
     df = df.sort_values("TimeBin")
 
+    # --- Add rank to bot names if group_by is a bot column ---
+    if group_by in ["Bot_L", "Bot_R"] and "Rank_L" in df.columns:
+        # Use Rank_L for both sides
+        rank_col = "Rank_L"
+        rank_map = df.groupby(group_by)[rank_col].first().sort_values().to_dict()
+        df["BotWithRank"] = df[group_by].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
+        group_by_plot = "BotWithRank"
+        # Sort bots by rank
+        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map[b])
+        bot_order_with_rank = [f"{b} (#{int(rank_map[b])})" for b in bot_order]
+    else:
+        group_by_plot = group_by
+        bot_order_with_rank = None
+
     # --- Helper: apply x-axis cutoff ---
     def apply_timer_xlim(ax):
         if timer is not None:
@@ -1372,14 +1470,16 @@ def plot_collision_timebins_intensity(
         if collision_type not in ["Actor_L", "Actor_R", "Tie"]:
             raise ValueError("collision_type must be one of ['Actor_L', 'Actor_R', 'Tie']")
 
-        grouped = df.groupby([group_by, "TimeBin"], as_index=False)[collision_type].mean()
+        grouped = df.groupby([group_by_plot, "TimeBin"], as_index=False)[collision_type].mean()
 
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y=collision_type, hue=group_by, marker="o", ax=ax)
+        sns.lineplot(data=grouped, x="TimeBin", y=collision_type, hue=group_by_plot,
+                    hue_order=bot_order_with_rank, marker="o", ax=ax)
         ax.set_title(f"Mean {collision_type} collisions over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count")
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
+        legend_title = "Bot (Rank)" if group_by in ["Bot_L", "Bot_R"] else group_by
+        ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
         fig.tight_layout()
@@ -1388,14 +1488,16 @@ def plot_collision_timebins_intensity(
     elif mode == "total":
         # Sum all collision types
         df["TotalCollisions"] = df["Actor_L"] + df["Actor_R"] + df["Tie"]
-        grouped = df.groupby([group_by, "TimeBin"], as_index=False)["TotalCollisions"].mean()
+        grouped = df.groupby([group_by_plot, "TimeBin"], as_index=False)["TotalCollisions"].mean()
 
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y="TotalCollisions", hue=group_by, marker="o", ax=ax)
+        sns.lineplot(data=grouped, x="TimeBin", y="TotalCollisions", hue=group_by_plot,
+                    hue_order=bot_order_with_rank, marker="o", ax=ax)
         ax.set_title("Total collision intensity over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count (summed over collision types)")
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
+        legend_title = "Bot (Rank)" if group_by in ["Bot_L", "Bot_R"] else group_by
+        ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
         fig.tight_layout()
@@ -1415,11 +1517,17 @@ def plot_collision_timebins_intensity(
         handles, labels = None, None
         for i, ctype in enumerate(collision_types):
             ax = axes[i]
-            sub = df.groupby([group_by, "TimeBin"], as_index=False)[ctype].mean()
+            sub = df.groupby([group_by_plot, "TimeBin"], as_index=False)[ctype].mean()
             if sub.empty:
                 ax.set_visible(False)
                 continue
-            sns.lineplot(data=sub, x="TimeBin", y=ctype, hue=group_by, marker="o", ax=ax, legend=(i==0))
+
+            # Use hue_order for consistent ordering
+            if group_by in ["Bot_L", "Bot_R"] and "Rank_L" in df.columns:
+                sns.lineplot(data=sub, x="TimeBin", y=ctype, hue=group_by_plot,
+                           hue_order=bot_order_with_rank, marker="o", ax=ax, legend=(i==0))
+            else:
+                sns.lineplot(data=sub, x="TimeBin", y=ctype, hue=group_by_plot, marker="o", ax=ax, legend=(i==0))
 
             # Capture legend handles from first plot, then remove it
             if i == 0:
@@ -1434,8 +1542,9 @@ def plot_collision_timebins_intensity(
 
         # Add global legend below
         if handles and labels:
+            legend_title = "Bot (Rank)" if (group_by in ["Bot_L", "Bot_R"] and "Rank_L" in df.columns) else group_by
             fig.legend(
-                handles, labels, title=group_by,
+                handles, labels, title=legend_title,
                 loc="upper center", bbox_to_anchor=(0.5, -0.02),
                 ncol=min(6, len(labels))
             )
