@@ -61,7 +61,7 @@ if __name__ == "__main__":
         with modal.container():
             st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # show_overall_analysis(df,cfg,df_timebins, df_collision_timebins,toc,width,height)
+    show_overall_analysis(df,cfg,df_timebins, df_collision_timebins,toc,width,height)
 
     # show_individual_report(df,toc,width,height)
 

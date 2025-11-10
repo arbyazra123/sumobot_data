@@ -171,26 +171,52 @@ def plot_action_win_related(summary, width=8, height=6):
 def plot_highest_action(summary, width=8, height=6, n_action = 6):
     action_cols = [col for col in summary.columns if col.endswith("_Act_L")]
 
+    # Get rank mapping if available
+    if "Rank_L" in summary.columns:
+        rank_map = summary.groupby("Bot_L")["Rank_L"].first().to_dict()
+        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map[b])
+    else:
+        rank_map = {}
+        bot_order = sorted(summary["Bot_L"].unique())
+
     df_actions = summary.melt(
-        id_vars=["Bot_L"], 
+        id_vars=["Bot_L"],
         value_vars=action_cols,
-        var_name="Action", 
+        var_name="Action",
         value_name="Count"
     )
     df_actions["Action"] = df_actions["Action"].str.replace("_Act_L", "")
     df_actions = df_actions.groupby(["Bot_L", "Action"])["Count"].sum().reset_index()
+
+    # Add rank to bot names if available
+    if rank_map:
+        df_actions["BotWithRank"] = df_actions["Bot_L"].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
+        bot_order_with_rank = [f"{b} (#{int(rank_map[b])})" for b in bot_order]
+        hue_col = "BotWithRank"
+        hue_order = bot_order_with_rank
+    else:
+        hue_col = "Bot_L"
+        hue_order = bot_order
+
     top_actions = df_actions.groupby("Bot_L").apply(lambda x: x.nlargest(n_action, "Count")).reset_index(drop=True)
+
+    # Re-add BotWithRank for top_actions
+    if rank_map:
+        top_actions["BotWithRank"] = top_actions["Bot_L"].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
+
     fig = plt.figure(figsize=(width,height))
     sns.barplot(
-        data=top_actions, 
-        x="Count", 
-        y="Action", 
-        hue="Bot_L"
+        data=top_actions,
+        x="Count",
+        y="Action",
+        hue=hue_col,
+        hue_order=hue_order
     )
     plt.title("Top 3 Actions Taken per Bot")
     plt.xlabel("Action Count")
     plt.ylabel("Action")
-    plt.legend(title="Bot", loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
+    legend_title = "Bot (Rank)" if rank_map else "Bot"
+    plt.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
     plt.tight_layout()
     return fig
 
@@ -263,6 +289,7 @@ def plot_timebins_intensity(
     action_name=None,    # used when mode == "select"
     width=10,
     height=6,
+    summary_df=None,     # Optional: summary dataframe with Rank_L column for bot ranking
 ):
     """
     Plot action intensity over time (with optional timer cutoff).
@@ -291,13 +318,21 @@ def plot_timebins_intensity(
     df = df.sort_values("TimeBin")
 
     # --- Add rank to bot names if group_by is "Bot" ---
-    if group_by == "Bot" and "Rank" in df.columns:
-        # Get rank for each bot
-        rank_map = df.groupby("Bot")["Rank"].first().sort_values().to_dict()
+    rank_map = None
+    if group_by == "Bot":
+        # Try to get rank from summary_df first, then from df itself
+        if summary_df is not None and "Rank_L" in summary_df.columns:
+            rank_map = summary_df.groupby("Bot_L")["Rank_L"].first().to_dict()
+        elif "Rank" in df.columns:
+            rank_map = df.groupby("Bot")["Rank"].first().to_dict()
+        elif "Rank_L" in df.columns:
+            rank_map = df.groupby("Bot")["Rank_L"].first().to_dict()
+
+    if rank_map:
         df["BotWithRank"] = df["Bot"].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
         group_by_plot = "BotWithRank"
         # Sort bots by rank
-        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map[b])
+        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map.get(b, 999))
         bot_order_with_rank = [f"{b} (#{int(rank_map[b])})" for b in bot_order]
     else:
         group_by_plot = group_by
@@ -325,7 +360,7 @@ def plot_timebins_intensity(
         ax.set_title(f"Mean {action_name} over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count")
-        legend_title = "Bot (Rank)" if group_by == "Bot" else group_by
+        legend_title = "Bot (Rank)" if (group_by == "Bot" and rank_map is not None) else group_by
         ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
@@ -340,7 +375,7 @@ def plot_timebins_intensity(
         ax.set_title("Total action intensity over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count (summed over actions)")
-        legend_title = "Bot (Rank)" if group_by == "Bot" else group_by
+        legend_title = "Bot (Rank)" if (group_by == "Bot" and rank_map is not None) else group_by
         ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
@@ -387,7 +422,7 @@ def plot_timebins_intensity(
 
         # Add global legend below
         if handles and labels:
-            legend_title = "Bot (Rank)" if group_by == "Bot" else group_by
+            legend_title = "Bot (Rank)" if (group_by == "Bot" and rank_map is not None) else group_by
             fig.legend(
                 handles, labels, title=legend_title,
                 loc="upper center", bbox_to_anchor=(0.5, -0.02),
@@ -1405,6 +1440,7 @@ def plot_collision_timebins_intensity(
     collision_type=None,  # "Actor_L" | "Actor_R" | "Tie" (used when mode == "select")
     width=10,
     height=6,
+    summary_df=None,     # Optional: summary dataframe with Rank_L column for bot ranking
 ):
     """
     Plot collision intensity over time (with optional timer cutoff).
@@ -1444,14 +1480,19 @@ def plot_collision_timebins_intensity(
     df = df.sort_values("TimeBin")
 
     # --- Add rank to bot names if group_by is a bot column ---
-    if group_by in ["Bot_L", "Bot_R"] and "Rank_L" in df.columns:
-        # Use Rank_L for both sides
-        rank_col = "Rank_L"
-        rank_map = df.groupby(group_by)[rank_col].first().sort_values().to_dict()
+    rank_map = None
+    if group_by in ["Bot_L", "Bot_R"]:
+        # Try to get rank from summary_df first, then from df itself
+        if summary_df is not None and "Rank_L" in summary_df.columns:
+            rank_map = summary_df.groupby("Bot_L")["Rank_L"].first().to_dict()
+        elif "Rank_L" in df.columns:
+            rank_map = df.groupby(group_by)["Rank_L"].first().to_dict()
+
+    if rank_map:
         df["BotWithRank"] = df[group_by].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
         group_by_plot = "BotWithRank"
         # Sort bots by rank
-        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map[b])
+        bot_order = sorted(rank_map.keys(), key=lambda b: rank_map.get(b, 999))
         bot_order_with_rank = [f"{b} (#{int(rank_map[b])})" for b in bot_order]
     else:
         group_by_plot = group_by
@@ -1478,7 +1519,7 @@ def plot_collision_timebins_intensity(
         ax.set_title(f"Mean {collision_type} collisions over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count")
-        legend_title = "Bot (Rank)" if group_by in ["Bot_L", "Bot_R"] else group_by
+        legend_title = "Bot (Rank)" if (group_by in ["Bot_L", "Bot_R"] and rank_map is not None) else group_by
         ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
@@ -1496,7 +1537,7 @@ def plot_collision_timebins_intensity(
         ax.set_title("Total collision intensity over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count (summed over collision types)")
-        legend_title = "Bot (Rank)" if group_by in ["Bot_L", "Bot_R"] else group_by
+        legend_title = "Bot (Rank)" if (group_by in ["Bot_L", "Bot_R"] and rank_map is not None) else group_by
         ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
         ax.grid(True, alpha=0.3)
         apply_timer_xlim(ax)
@@ -1542,7 +1583,7 @@ def plot_collision_timebins_intensity(
 
         # Add global legend below
         if handles and labels:
-            legend_title = "Bot (Rank)" if (group_by in ["Bot_L", "Bot_R"] and "Rank_L" in df.columns) else group_by
+            legend_title = "Bot (Rank)" if (group_by in ["Bot_L", "Bot_R"] and rank_map is not None) else group_by
             fig.legend(
                 handles, labels, title=legend_title,
                 loc="upper center", bbox_to_anchor=(0.5, -0.02),
