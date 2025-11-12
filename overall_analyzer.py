@@ -1705,28 +1705,28 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
         for actI in filters["ActInterval"]:
 
             toc.h3(f"Action intensity over Timer={timI}, ActionInterval={actI}")
-            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="total")
+            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
             st.pyplot(fig)
 
-            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="per_action")
+            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="per_action", summary_df=df)
             st.pyplot(fig)
 
     
     toc.h3(f"Action intensity over All Configuration")
-    fig = plot_timebins_intensity(df_timebins, mode="total")
+    fig = plot_timebins_intensity(df_timebins, mode="total", summary_df=df)
     st.pyplot(fig)
 
-    fig = plot_timebins_intensity(df_timebins, mode="per_action")
+    fig = plot_timebins_intensity(df_timebins, mode="per_action", summary_df=df)
     st.pyplot(fig)
 
     for timI in filters["Timer"]:
         for actI in filters["ActInterval"]:
 
             toc.h3(f"Collision intensity over Timer={timI}, ActionInterval={actI}")
-            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="total")
+            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
             st.pyplot(fig)
 
-            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="per_type")
+            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="per_type", summary_df=df)
             st.pyplot(fig)
 
     toc.h3(f"Collision detail distribution per bots")
@@ -1734,10 +1734,10 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
     st.pyplot(fig)
 
     toc.h3(f"Collision intensity over All Configuration")
-    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total")
+    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total", summary_df=df)
     st.pyplot(fig)
 
-    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type")
+    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type", summary_df=df)
     st.pyplot(fig)
 
     # Action vs. Win Relation

@@ -5,3 +5,4 @@ batched/*.parquet
 *.log
 *.duckdb
 arena_heatmap
+analysis_output
