@@ -286,9 +286,13 @@ def plot_joint_heatmap_with_distributions(phase_df, phase_name, bot_name="", act
     # Right marginal (Y distribution)
     ax_right = fig.add_subplot(gs[1:4, 3], sharey=ax_main)
 
+    # Set white background for main axis
+    ax_main.set_facecolor('white')
+
     # Plot contour heatmap on main axis
     if len(x) > 1:
         from scipy.stats import gaussian_kde
+        from matplotlib.colors import LinearSegmentedColormap
 
         try:
             xy = np.vstack([x, y])
@@ -302,9 +306,19 @@ def plot_joint_heatmap_with_distributions(phase_df, phase_name, bot_name="", act
             positions = np.vstack([xx.ravel(), yy.ravel()])
             density = np.reshape(kde(positions).T, xx.shape)
 
-            # Plot filled contours (density heatmap)
-            ax_main.contourf(xx, yy, density, levels=15, cmap="Greens", alpha=0.8, zorder=1)
-            ax_main.contour(xx, yy, density, levels=5, colors='darkgreen', alpha=0.3, linewidths=0.5, zorder=2)
+            # Mask low-density areas to keep background white
+            threshold = np.percentile(density, 30)  # Mask bottom 30% of density
+            density_masked = np.ma.masked_where(density < threshold, density)
+
+            # Create custom colormap: light green -> medium-dark green
+            colors_list = ['#C8E6C8', '#90D090', '#5CB85C', '#3D9B3D']
+            n_bins = 256
+            cmap = LinearSegmentedColormap.from_list('green_gradient', colors_list, N=n_bins)
+
+            # Plot filled contours with masked data - only areas above threshold
+            ax_main.contourf(xx, yy, density_masked, levels=15, cmap=cmap, zorder=1)
+            ax_main.contour(xx, yy, density_masked, levels=5, colors='darkgreen', alpha=0.3,
+                           linewidths=0.5, zorder=2)
 
         except Exception as e:
             print(f"Warning: KDE failed for {phase_name}, using scatter plot. Error: {e}")
