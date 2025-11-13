@@ -422,7 +422,7 @@ def extract_timer_from_config(config_folder):
     return None
 
 
-def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chunksize=50000, max_configs=None, group_by_timer=False):
+def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chunksize=50000, max_configs=None, group_by_timer=False, also_load_distance=False):
     """
     Load all CSV data for a specific bot from the simulation directory
 
@@ -433,12 +433,15 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
         chunksize: Chunk size for reading CSV files
         max_configs: Maximum number of config folders to process (None for all)
         group_by_timer: If True, return dict of {timer_value: DataFrame}, else return combined DataFrame
+        also_load_distance: If True, also return timer-grouped distance data
 
     Returns:
         Combined DataFrame with all bot data, or dict of DataFrames grouped by Timer
+        If also_load_distance=True, returns tuple: (bot_data, distance_data)
     """
     all_data = []
     timer_grouped_data = {}  # {timer_value: [dataframes]}
+    timer_distance_data = {}  # {timer_value: [distance dataframes]}
 
     # Find all matchup folders containing this bot
     matchup_folders = [f for f in os.listdir(base_dir)
@@ -493,6 +496,18 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
                 df = load_data_chunked(csv_path, chunksize, actor_filter=actor_filter)
 
                 if not df.is_empty():
+                    # Also load distance data if requested
+                    if also_load_distance:
+                        df_all_actors = load_data_chunked(csv_path, chunksize, actor_filter=None)
+                        if not df_all_actors.is_empty():
+                            dist_df = calculate_distance_between_bots(df_all_actors)
+                            if not dist_df.is_empty():
+                                timer = extract_timer_from_config(config_folder)
+                                if timer is not None:
+                                    if timer not in timer_distance_data:
+                                        timer_distance_data[timer] = []
+                                    timer_distance_data[timer].append(dist_df)
+
                     if group_by_timer:
                         # Extract timer value and group
                         timer = extract_timer_from_config(config_folder)
@@ -508,6 +523,8 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
         # Return dict of combined DataFrames per timer
         if not timer_grouped_data:
             print("No valid data found.")
+            if also_load_distance:
+                return {}, {}
             return {}
 
         print(f"\nLoaded {total_csvs} CSV files")
@@ -516,11 +533,16 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
             print(f"Combining data for Timer={timer}...")
             result[timer] = pl.concat(dfs)
             print(f"  Timer {timer}: {len(result[timer]):,} samples")
+
+        if also_load_distance:
+            return result, timer_distance_data
         return result
     else:
         # Return combined DataFrame
         if not all_data:
             print("No valid data found.")
+            if also_load_distance:
+                return pl.DataFrame(), {}
             return pl.DataFrame()
 
         print(f"\nLoaded {total_csvs} CSV files")
@@ -529,6 +551,8 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
 
         print(f"Total samples: {len(df_combined):,}")
 
+        if also_load_distance:
+            return df_combined, timer_distance_data
         return df_combined
 
 
@@ -777,6 +801,100 @@ def calculate_distance_from_center(df):
     ])
 
     return df
+
+def plot_distance_over_time_from_data(timer_data, bot_name, output_path=None):
+    """
+    Plot mean distance over time from pre-loaded timer-grouped data
+
+    Args:
+        timer_data: Dict of {timer: [list of distance dataframes]}
+        bot_name: Name of the bot to analyze
+        output_path: Path to save the figure
+
+    Returns:
+        matplotlib figure
+    """
+    if not timer_data:
+        print("No valid data found")
+        return None
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(14, 8))
+
+    # Process each timer value
+    colors = plt.cm.tab10(range(len(timer_data)))
+
+    for idx, (timer, dfs) in enumerate(sorted(timer_data.items())):
+        # Combine all games for this timer (across all opponents)
+        combined_df = pl.concat(dfs)
+
+        print(f"  Timer {timer}s: {len(combined_df):,} data points")
+
+        # Calculate mean distance over time bins
+        # Bin UpdatedAt into time intervals, but only up to the Timer value
+        time_bins = 50  # Number of bins
+        # Use the Timer value as the max time for this specific config
+        max_time = timer  # Cut at the Timer config value
+        bin_size = max_time / time_bins
+
+        # Create time bins and calculate mean distance per bin
+        time_points = []
+        mean_distances = []
+        std_distances = []
+
+        for i in range(time_bins):
+            bin_start = i * bin_size
+            bin_end = (i + 1) * bin_size
+
+            bin_data = combined_df.filter(
+                (pl.col('UpdatedAt') >= bin_start) &
+                (pl.col('UpdatedAt') < bin_end)
+            )
+
+            if not bin_data.is_empty():
+                time_points.append((bin_start + bin_end) / 2)
+                mean_distances.append(bin_data['Distance'].mean())
+                # Handle None for std (when only 1 data point)
+                std_val = bin_data['Distance'].std()
+                std_distances.append(std_val if std_val is not None else 0.0)
+
+        # Convert to numpy for plotting
+        time_points = np.array(time_points)
+        mean_distances = np.array(mean_distances)
+        std_distances = np.array(std_distances)
+
+        # Plot line with markers
+        timer_label = f"Timer {int(timer)}s" if timer == int(timer) else f"Timer {timer}s"
+        ax.plot(time_points, mean_distances, marker='o', markersize=4,
+                linewidth=2, label=timer_label, color=colors[idx], alpha=0.8)
+
+        # Add confidence interval (mean ± std)
+        ax.fill_between(time_points,
+                        mean_distances - std_distances,
+                        mean_distances + std_distances,
+                        alpha=0.2, color=colors[idx])
+
+    # Customize plot
+    ax.set_xlabel("Time (seconds)", fontsize=12)
+    ax.set_ylabel("Mean Distance Between Bots", fontsize=12)
+    ax.set_title(f"Mean Distance Over Time (vs All Opponents)\n{bot_name}",
+                 fontsize=14, fontweight='bold')
+    ax.legend(loc='best', fontsize=10, framealpha=0.9)
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Limit x-axis to the maximum Timer value found
+    max_timer = max(timer_data.keys())
+    ax.set_xlim(0, max_timer)
+
+    plt.tight_layout()
+
+    # Save or return
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"  Saved distance over time to {output_path}")
+
+    return fig
+
 
 def plot_distance_over_time_by_timer_per_bot(base_dir, bot_name, output_path=None, chunksize=50000, max_configs=None):
     """
@@ -1070,13 +1188,14 @@ def load_all_game_data(base_dir, bot1_name=None, bot2_name=None, chunksize=50000
 
     return df_combined
 
-def create_distance_over_time_all_bots(base_dir, output_dir="distance_over_time", chunksize=50000, max_configs=None):
+def create_distance_over_time_all_bots(base_dir, output_dir="arena_heatmaps", chunksize=50000, max_configs=None):
     """
     Create distance over time line plots for all bots (vs all opponents, grouped by Timer)
+    Saves plots in each bot's directory within the output_dir
 
     Args:
         base_dir: Base simulation directory
-        output_dir: Output directory for plots
+        output_dir: Base output directory (plots will be saved in bot subdirectories)
         chunksize: Chunk size for reading CSV files
         max_configs: Maximum number of configs to process
     """
@@ -1094,24 +1213,25 @@ def create_distance_over_time_all_bots(base_dir, output_dir="distance_over_time"
     bot_names = sorted(bot_names)
     print(f"Found {len(bot_names)} unique bots: {bot_names}")
 
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-
     # Process each bot
     for bot_name in bot_names:
         print("\n" + "=" * 60)
         print(f"Processing {bot_name}")
         print("=" * 60)
 
+        # Create bot-specific directory if it doesn't exist
+        bot_dir = os.path.join(output_dir, bot_name)
+        os.makedirs(bot_dir, exist_ok=True)
+
         # Create distance over time plot (vs all opponents)
-        output_path = os.path.join(output_dir, f"{bot_name}_distance_over_time.png")
+        output_path = os.path.join(bot_dir, "distance_over_time.png")
         fig = plot_distance_over_time_by_timer_per_bot(base_dir, bot_name, output_path, chunksize, max_configs)
 
         if fig is not None:
             plt.close(fig)
 
     print("\n" + "=" * 60)
-    print(f"✅ Completed! All distance over time plots saved to: {output_dir}")
+    print(f"✅ Completed! All distance over time plots saved in bot directories")
     print("=" * 60)
 
 
@@ -1166,7 +1286,7 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="distance_di
     print(f"✅ Completed! All distance distribution plots saved to: {output_dir}")
     print("=" * 60)
 
-def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_position="both", chunksize=50000, max_configs=None, mode="all", use_timer=False):
+def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_position="both", chunksize=50000, max_configs=None, mode="all", use_timer=False, include_distance_over_time=True):
     """
     Create heatmaps and position distribution plots for all bots in the simulation directory
     Saves individual phase/timer images for each bot
@@ -1179,6 +1299,7 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
         max_configs: Maximum number of configs to process per matchup
         mode: What to generate - "heatmap", "position", or "all" (default: "all")
         use_timer: If True, group by Timer values instead of phases
+        include_distance_over_time: If True, also generate distance over time plot (default: True)
     """
     # Find all unique bot names from matchup folders
     matchup_folders = [f for f in os.listdir(base_dir)
@@ -1210,9 +1331,18 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
         # Generate heatmaps if requested
         if mode in ["heatmap", "all"]:
             if use_timer:
-                # Timer-based mode
+                # Timer-based mode - load data with distance if needed
                 print("\nLoading data grouped by Timer...")
-                timer_data = load_bot_data_from_simulation(base_dir, bot_name, actor_position, chunksize, max_configs, group_by_timer=True)
+                if include_distance_over_time:
+                    timer_data, distance_data = load_bot_data_from_simulation(
+                        base_dir, bot_name, actor_position, chunksize, max_configs,
+                        group_by_timer=True, also_load_distance=True
+                    )
+                else:
+                    timer_data = load_bot_data_from_simulation(
+                        base_dir, bot_name, actor_position, chunksize, max_configs,
+                        group_by_timer=True
+                    )
 
                 if not timer_data:
                     print(f"No data found for {bot_name}, skipping...")
@@ -1234,6 +1364,14 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                         output_path = os.path.join(bot_dir, f"timer_{timer_str}.png")
                         plt.savefig(output_path, dpi=150, bbox_inches='tight')
                         print(f"  Saved to {output_path}")
+                        plt.close(fig)
+
+                # Generate distance over time plot if requested and data is available
+                if include_distance_over_time and distance_data:
+                    print(f"\nGenerating distance over time plot...")
+                    output_path = os.path.join(bot_dir, "distance_over_time.png")
+                    fig = plot_distance_over_time_from_data(distance_data, bot_name, output_path)
+                    if fig is not None:
                         plt.close(fig)
 
             else:
@@ -1476,9 +1614,9 @@ Examples:
 
         base_output = args.output
 
-        # 1. Arena heatmaps for all bots
+        # Generate arena heatmaps, position distributions, and distance over time
         print("\n" + "=" * 60)
-        print("📍 1/2: Generating arena heatmaps...")
+        print("📍 Generating all visualizations...")
         print("=" * 60)
         heatmap_dir = os.path.join(base_output, "arena_heatmaps")
         create_phased_heatmaps_all_bots(
@@ -1488,28 +1626,16 @@ Examples:
             args.chunksize,
             args.max_configs,
             "all",  # Generate both heatmaps and position distributions
-            args.use_timer
-        )
-
-        # 2. Distance over time (grouped by Timer)
-        print("\n" + "=" * 60)
-        print("📈 2/2: Generating distance over time plots...")
-        print("=" * 60)
-        distance_time_dir = os.path.join(base_output, "distance_over_time")
-        create_distance_over_time_all_bots(
-            args.base_dir,
-            distance_time_dir,
-            args.chunksize,
-            args.max_configs
+            args.use_timer,
+            include_distance_over_time=True  # Also generate distance over time
         )
 
         print("\n" + "=" * 60)
-        print("✅ ALL ANALYSES COMPLETED!")
+        print("ALL ANALYSES COMPLETED!")
         print("=" * 60)
         print(f"All outputs saved to: {base_output}")
         print("\nGenerated:")
-        print(f"  📍 Arena heatmaps: {heatmap_dir}")
-        print(f"  📈 Distance over time: {distance_time_dir}")
+        print(f"Arena heatmaps, position distributions, and distance plots: {heatmap_dir}")
         print("=" * 60)
 
     else:
