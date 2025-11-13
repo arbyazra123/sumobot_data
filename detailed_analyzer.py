@@ -307,17 +307,18 @@ def plot_joint_heatmap_with_distributions(phase_df, phase_name, bot_name="", act
             density = np.reshape(kde(positions).T, xx.shape)
 
             # Mask low-density areas to keep background white
-            threshold = np.percentile(density, 30)  # Mask bottom 30% of density
+            threshold = np.percentile(density, 40)  # Mask bottom n% of density
             density_masked = np.ma.masked_where(density < threshold, density)
 
-            # Create custom colormap: light green -> medium-dark green
-            colors_list = ['#C8E6C8', '#90D090', '#5CB85C', '#3D9B3D']
+            # Create custom colormap: white -> light green -> strong dark green (more layers)
+            colors_list = [ '#E0FFE0', '#C0FFC0', '#90EE90', '#66DD66',
+                          '#32CD32', '#2AAA2A', '#228B22', '#1A6B1A', '#006400']
             n_bins = 256
             cmap = LinearSegmentedColormap.from_list('green_gradient', colors_list, N=n_bins)
 
             # Plot filled contours with masked data - only areas above threshold
-            ax_main.contourf(xx, yy, density_masked, levels=15, cmap=cmap, zorder=1)
-            ax_main.contour(xx, yy, density_masked, levels=5, colors='darkgreen', alpha=0.3,
+            ax_main.contourf(xx, yy, density_masked, levels=10, cmap=cmap, zorder=1)
+            ax_main.contour(xx, yy, density_masked, levels=10, colors='darkgreen', alpha=0.4,
                            linewidths=0.5, zorder=2)
 
         except Exception as e:
@@ -1796,7 +1797,7 @@ Examples:
             max_configs,  # Use 1 if --test flag is set
             "all",  # Generate both heatmaps and position distributions
             args.use_timer,
-            include_distance_over_time=True  # Also generate distance over time
+            include_distance_over_time=False
         )
 
         print("\n" + "=" * 60)
