@@ -65,12 +65,12 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
     # Cast columns to ensure consistent schema across all files
     # This prevents schema mismatch errors when concatenating
     df = df.with_columns([
-        pl.col("GameIndex").cast(pl.Int64),
-        pl.col("Actor").cast(pl.Int64),
-        pl.col("UpdatedAt").cast(pl.Float64),
-        pl.col("BotPosX").cast(pl.Float64),
-        pl.col("BotPosY").cast(pl.Float64),
-        pl.col("BotRot").cast(pl.Float64),
+        pl.col("GameIndex").cast(pl.Int64, strict=False),
+        pl.col("Actor").cast(pl.Int64, strict=False),
+        pl.col("UpdatedAt").cast(pl.Float64, strict=False),
+        pl.col("BotPosX").cast(pl.Float64, strict=False),
+        pl.col("BotPosY").cast(pl.Float64, strict=False),
+        pl.col("BotRot").cast(pl.Float64, strict=False),
     ])
 
     return df
@@ -779,19 +779,19 @@ def calculate_distance_between_bots(df):
     bot1_df = df.filter(pl.col("Actor") == 0).select([
         "GameIndex", "UpdatedAt", "BotPosX", "BotPosY"
     ]).with_columns([
-        pl.col("GameIndex").cast(pl.Int64),
-        pl.col("UpdatedAt").cast(pl.Float64),
-        pl.col("BotPosX").cast(pl.Float64),
-        pl.col("BotPosY").cast(pl.Float64),
+        pl.col("GameIndex").cast(pl.Int64, strict=False),
+        pl.col("UpdatedAt").cast(pl.Float64, strict=False),
+        pl.col("BotPosX").cast(pl.Float64, strict=False),
+        pl.col("BotPosY").cast(pl.Float64, strict=False),
     ]).rename({"BotPosX": "Bot1_X", "BotPosY": "Bot1_Y"})
 
     bot2_df = df.filter(pl.col("Actor") == 1).select([
         "GameIndex", "UpdatedAt", "BotPosX", "BotPosY"
     ]).with_columns([
-        pl.col("GameIndex").cast(pl.Int64),
-        pl.col("UpdatedAt").cast(pl.Float64),
-        pl.col("BotPosX").cast(pl.Float64),
-        pl.col("BotPosY").cast(pl.Float64),
+        pl.col("GameIndex").cast(pl.Int64, strict=False),
+        pl.col("UpdatedAt").cast(pl.Float64, strict=False),
+        pl.col("BotPosX").cast(pl.Float64, strict=False),
+        pl.col("BotPosY").cast(pl.Float64, strict=False),
     ]).rename({"BotPosX": "Bot2_X", "BotPosY": "Bot2_Y"})
 
     # Merge on GameIndex and UpdatedAt to align frames
