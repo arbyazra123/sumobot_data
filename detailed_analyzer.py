@@ -48,8 +48,9 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
         chunksize: Number of rows per chunk (ignored for Polars, kept for API compatibility)
         actor_filter: Filter for specific actor (0 for left, 1 for right, None for both)
     """
-    # Define explicit schema to avoid inference issues with GPU
-    schema = {
+    # Define explicit schema override for critical columns to avoid GPU inference issues
+    # Let other columns be inferred naturally
+    schema_overrides = {
         "GameIndex": pl.Int64,
         "Actor": pl.Int64,
         "UpdatedAt": pl.Float64,
@@ -58,8 +59,8 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
         "BotRot": pl.Float64,
     }
 
-    # Use Polars lazy API with explicit schema
-    lf = pl.scan_csv(csv_path, schema=schema)
+    # Use Polars lazy API with schema overrides instead of strict schema
+    lf = pl.scan_csv(csv_path, schema_overrides=schema_overrides, infer_schema_length=10000)
 
     # Filter by actor if specified
     if actor_filter is not None:
