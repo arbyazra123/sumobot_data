@@ -1630,6 +1630,9 @@ Examples:
 
   # Run all analyses with timer-based grouping
   python detailed_analyzer.py all-analysis --use-timer
+
+  # Test mode: process only 1 config per matchup for quick testing
+  python detailed_analyzer.py all-analysis --test --use-timer
         """
     )
 
@@ -1710,6 +1713,8 @@ Examples:
                                     help="Maximum number of config folders to process per matchup (for testing)")
     all_analysis_parser.add_argument("--use-timer", action="store_true",
                                     help="Group by Timer values from config instead of phases (early/mid/late)")
+    all_analysis_parser.add_argument("--test", action="store_true",
+                                    help="Test mode: process only 1 config per matchup for quick testing")
 
     args = parser.parse_args()
 
@@ -1756,8 +1761,12 @@ Examples:
         )
 
     elif args.command == "all-analysis":
+        # Handle test mode
+        max_configs = 1 if args.test else args.max_configs
+        mode_text = "🧪 TEST MODE (1 config per matchup)" if args.test else "🚀 Running ALL Analyses"
+
         print("=" * 60)
-        print("🚀 Running ALL Analyses")
+        print(mode_text)
         print("=" * 60)
 
         base_output = args.output
@@ -1772,7 +1781,7 @@ Examples:
             heatmap_dir,
             args.position,
             args.chunksize,
-            args.max_configs,
+            max_configs,  # Use 1 if --test flag is set
             "all",  # Generate both heatmaps and position distributions
             args.use_timer,
             include_distance_over_time=True  # Also generate distance over time
