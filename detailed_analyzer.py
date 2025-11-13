@@ -778,10 +778,20 @@ def calculate_distance_between_bots(df):
     # Split data by actor - use numeric comparison to avoid schema issues
     bot1_df = df.filter(pl.col("Actor") == 0).select([
         "GameIndex", "UpdatedAt", "BotPosX", "BotPosY"
+    ]).with_columns([
+        pl.col("GameIndex").cast(pl.Int64),
+        pl.col("UpdatedAt").cast(pl.Float64),
+        pl.col("BotPosX").cast(pl.Float64),
+        pl.col("BotPosY").cast(pl.Float64),
     ]).rename({"BotPosX": "Bot1_X", "BotPosY": "Bot1_Y"})
 
     bot2_df = df.filter(pl.col("Actor") == 1).select([
         "GameIndex", "UpdatedAt", "BotPosX", "BotPosY"
+    ]).with_columns([
+        pl.col("GameIndex").cast(pl.Int64),
+        pl.col("UpdatedAt").cast(pl.Float64),
+        pl.col("BotPosX").cast(pl.Float64),
+        pl.col("BotPosY").cast(pl.Float64),
     ]).rename({"BotPosX": "Bot2_X", "BotPosY": "Bot2_Y"})
 
     # Merge on GameIndex and UpdatedAt to align frames

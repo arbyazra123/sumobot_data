@@ -31,6 +31,17 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
     # Collect with GPU acceleration
     df = collect_with_gpu(lf)
 
+    # Cast columns to ensure consistent schema across all files
+    # This prevents schema mismatch errors when concatenating (especially with GPU)
+    df = df.with_columns([
+        pl.col("GameIndex").cast(pl.Int64),
+        pl.col("Actor").cast(pl.Int64),
+        pl.col("UpdatedAt").cast(pl.Float64),
+        pl.col("BotPosX").cast(pl.Float64),
+        pl.col("BotPosY").cast(pl.Float64),
+        pl.col("BotRot").cast(pl.Float64),
+    ])
+
     return df
 
 
