@@ -17,8 +17,18 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
         chunksize: Number of rows per chunk (ignored for Polars, kept for API compatibility)
         actor_filter: Filter for specific actor (0 for left, 1 for right, None for both)
     """
-    # Use Polars lazy API for efficient loading with proper type inference
-    lf = pl.scan_csv(csv_path, infer_schema_length=10000)
+    # Define explicit schema to avoid inference issues with GPU
+    schema = {
+        "GameIndex": pl.Int64,
+        "Actor": pl.Int64,
+        "UpdatedAt": pl.Float64,
+        "BotPosX": pl.Float64,
+        "BotPosY": pl.Float64,
+        "BotRot": pl.Float64,
+    }
+
+    # Use Polars lazy API with explicit schema
+    lf = pl.scan_csv(csv_path, schema=schema)
 
     # Filter by actor if specified
     if actor_filter is not None:
@@ -30,17 +40,6 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
 
     # Collect with GPU acceleration
     df = collect_with_gpu(lf)
-
-    # Cast columns to ensure consistent schema across all files
-    # This prevents schema mismatch errors when concatenating (especially with GPU)
-    df = df.with_columns([
-        pl.col("GameIndex").cast(pl.Int64, strict=False),
-        pl.col("Actor").cast(pl.Int64, strict=False),
-        pl.col("UpdatedAt").cast(pl.Float64, strict=False),
-        pl.col("BotPosX").cast(pl.Float64, strict=False),
-        pl.col("BotPosY").cast(pl.Float64, strict=False),
-        pl.col("BotRot").cast(pl.Float64, strict=False),
-    ])
 
     return df
 
