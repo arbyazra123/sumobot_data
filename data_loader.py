@@ -150,7 +150,7 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
         result = {}
         for timer, dfs in timer_grouped_data.items():
             print(f"Combining data for Timer={timer}...")
-            result[timer] = pl.concat(dfs)
+            result[timer] = pl.concat(dfs, how="vertical_relaxed")
             print(f"  Timer {timer}: {len(result[timer]):,} samples")
 
         if also_load_distance:
@@ -166,7 +166,7 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
 
         print(f"\nLoaded {total_csvs} CSV files")
         print("Combining all data...")
-        df_combined = pl.concat(all_data)
+        df_combined = pl.concat(all_data, how="vertical_relaxed")
 
         print(f"Total samples: {len(df_combined):,}")
 

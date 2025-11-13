@@ -133,7 +133,7 @@ def split_into_phases(df, num_phases=3):
     result_phases = []
     for phase_data in phases:
         if phase_data:
-            result_phases.append(pl.concat(phase_data))
+            result_phases.append(pl.concat(phase_data, how="vertical_relaxed"))
         else:
             result_phases.append(pl.DataFrame())
 
@@ -540,7 +540,7 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
         result = {}
         for timer, dfs in timer_grouped_data.items():
             print(f"Combining data for Timer={timer}...")
-            result[timer] = pl.concat(dfs)
+            result[timer] = pl.concat(dfs, how="vertical_relaxed")
             print(f"  Timer {timer}: {len(result[timer]):,} samples")
 
         if also_load_distance:
@@ -556,7 +556,7 @@ def load_bot_data_from_simulation(base_dir, bot_name, actor_position="left", chu
 
         print(f"\nLoaded {total_csvs} CSV files")
         print("Combining all data...")
-        df_combined = pl.concat(all_data)
+        df_combined = pl.concat(all_data, how="vertical_relaxed")
 
         print(f"Total samples: {len(df_combined):,}")
 
@@ -830,7 +830,7 @@ def plot_distance_histogram_from_data(distance_data, bot_name, output_path=None)
     # Combine all distance data across all timers and opponents
     all_distances = []
     for timer, dfs in distance_data.items():
-        combined_df = pl.concat(dfs)
+        combined_df = pl.concat(dfs, how="vertical_relaxed")
         all_distances.append(combined_df["Distance"].to_numpy())
 
     # Concatenate all distances
@@ -887,7 +887,7 @@ def plot_distance_from_center_histogram(bot_data, bot_name, output_path=None):
         all_dfs = []
         for timer, df in bot_data.items():
             all_dfs.append(df)
-        combined_df = pl.concat(all_dfs)
+        combined_df = pl.concat(all_dfs, how="vertical_relaxed")
     else:
         combined_df = bot_data
 
@@ -960,7 +960,7 @@ def plot_distance_over_time_from_data(timer_data, bot_name, output_path=None):
 
     for idx, (timer, dfs) in enumerate(sorted(timer_data.items())):
         # Combine all games for this timer (across all opponents)
-        combined_df = pl.concat(dfs)
+        combined_df = pl.concat(dfs, how="vertical_relaxed")
 
         print(f"  Timer {timer}s: {len(combined_df):,} data points")
 
@@ -1104,7 +1104,7 @@ def plot_distance_over_time_by_timer_per_bot(base_dir, bot_name, output_path=Non
 
     for idx, (timer, dfs) in enumerate(sorted(timer_data.items())):
         # Combine all games for this timer (across all opponents)
-        combined_df = pl.concat(dfs)
+        combined_df = pl.concat(dfs, how="vertical_relaxed")
 
         print(f"\nTimer {timer}s: {len(combined_df):,} data points")
 

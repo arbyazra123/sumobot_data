@@ -116,7 +116,7 @@ def split_into_phases(df, num_phases=3):
     result_phases = []
     for phase_data in phases:
         if phase_data:
-            result_phases.append(pl.concat(phase_data))
+            result_phases.append(pl.concat(phase_data, how="vertical_relaxed"))
         else:
             result_phases.append(pl.DataFrame())
 
