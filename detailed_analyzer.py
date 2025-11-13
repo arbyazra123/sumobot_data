@@ -53,14 +53,25 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
 
     # Filter by actor if specified
     if actor_filter is not None:
-        # Cast Actor column to string for comparison
-        lf = lf.filter(pl.col("Actor").cast(pl.String) == str(actor_filter))
+        # Use numeric comparison to avoid schema issues
+        lf = lf.filter(pl.col("Actor") == actor_filter)
 
     # Drop invalid entries
     lf = lf.drop_nulls(subset=["BotPosX", "BotPosY", "BotRot"])
 
     # Collect with GPU acceleration
     df = collect_with_gpu(lf)
+
+    # Cast columns to ensure consistent schema across all files
+    # This prevents schema mismatch errors when concatenating
+    df = df.with_columns([
+        pl.col("GameIndex").cast(pl.Int64),
+        pl.col("Actor").cast(pl.Int64),
+        pl.col("UpdatedAt").cast(pl.Float64),
+        pl.col("BotPosX").cast(pl.Float64),
+        pl.col("BotPosY").cast(pl.Float64),
+        pl.col("BotRot").cast(pl.Float64),
+    ])
 
     return df
 
@@ -764,12 +775,12 @@ def calculate_distance_between_bots(df):
     Returns:
         Polars DataFrame with distance between bots for each frame
     """
-    # Split data by actor
-    bot1_df = df.filter(pl.col("Actor").cast(pl.String) == "0").select([
+    # Split data by actor - use numeric comparison to avoid schema issues
+    bot1_df = df.filter(pl.col("Actor") == 0).select([
         "GameIndex", "UpdatedAt", "BotPosX", "BotPosY"
     ]).rename({"BotPosX": "Bot1_X", "BotPosY": "Bot1_Y"})
 
-    bot2_df = df.filter(pl.col("Actor").cast(pl.String) == "1").select([
+    bot2_df = df.filter(pl.col("Actor") == 1).select([
         "GameIndex", "UpdatedAt", "BotPosX", "BotPosY"
     ]).rename({"BotPosX": "Bot2_X", "BotPosY": "Bot2_Y"})
 
@@ -801,6 +812,131 @@ def calculate_distance_from_center(df):
     ])
 
     return df
+
+def plot_distance_histogram_from_data(distance_data, bot_name, output_path=None):
+    """
+    Plot histogram of distance between bot and all opponents
+
+    Args:
+        distance_data: Dict of {timer: [list of distance dataframes]}
+        bot_name: Name of the bot to analyze
+        output_path: Path to save the figure
+
+    Returns:
+        matplotlib figure
+    """
+    if not distance_data:
+        print("No valid distance data found")
+        return None
+
+    # Combine all distance data across all timers and opponents
+    all_distances = []
+    for timer, dfs in distance_data.items():
+        combined_df = pl.concat(dfs)
+        all_distances.append(combined_df["Distance"].to_numpy())
+
+    # Concatenate all distances
+    distances = np.concatenate(all_distances)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot histogram
+    ax.hist(distances, bins=100, color='steelblue', edgecolor='black', alpha=0.7, linewidth=0.5)
+
+    # Customize plot
+    ax.set_xlabel("Distance Between Bots", fontsize=12)
+    ax.set_ylabel("Frequency", fontsize=12)
+    ax.set_title(f"Distribution of Distance Between Bots\n{bot_name} vs All Opponents\n(n={len(distances):,} samples)",
+                 fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Add statistics text
+    mean_dist = np.mean(distances)
+    median_dist = np.median(distances)
+    std_dist = np.std(distances)
+    stats_text = f"Mean: {mean_dist:.2f}\nMedian: {median_dist:.2f}\nStd: {std_dist:.2f}"
+    ax.text(0.98, 0.98, stats_text,
+            transform=ax.transAxes, ha='right', va='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
+            fontsize=10, family='monospace')
+
+    plt.tight_layout()
+
+    # Save or return
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"  Saved distance histogram to {output_path}")
+
+    return fig
+
+
+def plot_distance_from_center_histogram(bot_data, bot_name, output_path=None):
+    """
+    Plot histogram of distance from center for a specific bot
+
+    Args:
+        bot_data: DataFrame or dict of DataFrames with bot position data
+        bot_name: Name of the bot to analyze
+        output_path: Path to save the figure
+
+    Returns:
+        matplotlib figure
+    """
+    # Handle both single DataFrame and dict of DataFrames
+    if isinstance(bot_data, dict):
+        # Combine all timer data
+        all_dfs = []
+        for timer, df in bot_data.items():
+            all_dfs.append(df)
+        combined_df = pl.concat(all_dfs)
+    else:
+        combined_df = bot_data
+
+    if combined_df.is_empty():
+        print("No valid data found")
+        return None
+
+    # Calculate distance from center
+    df_with_center_dist = calculate_distance_from_center(combined_df)
+    distances = df_with_center_dist["DistanceFromCenter"].to_numpy()
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot histogram
+    ax.hist(distances, bins=100, color='green', edgecolor='darkgreen', alpha=0.7, linewidth=0.5)
+
+    # Add arena radius line
+    ax.axvline(arena_radius, color='red', linestyle='--', linewidth=2, label=f'Arena Radius ({arena_radius:.2f})')
+
+    # Customize plot
+    ax.set_xlabel("Distance from Center", fontsize=12)
+    ax.set_ylabel("Frequency", fontsize=12)
+    ax.set_title(f"Distribution of Distance from Center\n{bot_name}\n(n={len(distances):,} samples)",
+                 fontsize=14, fontweight='bold')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Add statistics text
+    mean_dist = np.mean(distances)
+    median_dist = np.median(distances)
+    std_dist = np.std(distances)
+    stats_text = f"Mean: {mean_dist:.2f}\nMedian: {median_dist:.2f}\nStd: {std_dist:.2f}"
+    ax.text(0.02, 0.98, stats_text,
+            transform=ax.transAxes, ha='left', va='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
+            fontsize=10, family='monospace')
+
+    plt.tight_layout()
+
+    # Save or return
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"  Saved distance from center histogram to {output_path}")
+
+    return fig
+
 
 def plot_distance_over_time_from_data(timer_data, bot_name, output_path=None):
     """
@@ -1066,12 +1202,12 @@ def plot_distance_distributions(df, bot1_name="Bot 1", bot2_name="Bot 2", output
     print("Calculating distance from center...")
     df_with_center_dist = calculate_distance_from_center(df)
 
-    # Split by actor for center distance
+    # Split by actor for center distance - use numeric comparison
     bot1_center_dist = df_with_center_dist.filter(
-        pl.col("Actor").cast(pl.String) == "0"
+        pl.col("Actor") == 0
     )["DistanceFromCenter"].to_numpy()
     bot2_center_dist = df_with_center_dist.filter(
-        pl.col("Actor").cast(pl.String) == "1"
+        pl.col("Actor") == 1
     )["DistanceFromCenter"].to_numpy()
 
     # Create figure with 2 subplots
@@ -1366,11 +1502,23 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                         print(f"  Saved to {output_path}")
                         plt.close(fig)
 
-                # Generate distance over time plot if requested and data is available
+                # Generate distance plots if requested and data is available
                 if include_distance_over_time and distance_data:
                     print(f"\nGenerating distance over time plot...")
                     output_path = os.path.join(bot_dir, "distance_over_time.png")
                     fig = plot_distance_over_time_from_data(distance_data, bot_name, output_path)
+                    if fig is not None:
+                        plt.close(fig)
+
+                    print(f"Generating distance histogram...")
+                    output_path = os.path.join(bot_dir, "distance_histogram.png")
+                    fig = plot_distance_histogram_from_data(distance_data, bot_name, output_path)
+                    if fig is not None:
+                        plt.close(fig)
+
+                    print(f"Generating distance from center histogram...")
+                    output_path = os.path.join(bot_dir, "distance_from_center_histogram.png")
+                    fig = plot_distance_from_center_histogram(timer_data, bot_name, output_path)
                     if fig is not None:
                         plt.close(fig)
 
@@ -1616,7 +1764,7 @@ Examples:
 
         # Generate arena heatmaps, position distributions, and distance over time
         print("\n" + "=" * 60)
-        print("📍 Generating all visualizations...")
+        print("Generating all visualizations...")
         print("=" * 60)
         heatmap_dir = os.path.join(base_output, "arena_heatmaps")
         create_phased_heatmaps_all_bots(
