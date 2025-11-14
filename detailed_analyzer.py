@@ -148,8 +148,8 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
                 ha='center', va='center', transform=ax.transAxes)
         return
 
-    x = phase_df["BotPosX"].to_numpy()
-    y = phase_df["BotPosY"].to_numpy() - 2  # Shift Y by -2 (start position is at y=2)
+    x = phase_df["BotPosX"].to_numpy() - 0.24
+    y = phase_df["BotPosY"].to_numpy() - 1.97  # Shift Y by -1.97 (start position is at y=1.97)
 
     # Create 2D kernel density estimation for smooth contours
     if len(x) > 1:
