@@ -222,11 +222,11 @@ def plot_position_distribution(df_combined, bot_name, actor_position="both"):
     fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
     # Plot X distribution
-    ax.hist(x, bins=100, alpha=0.7, color='green', edgecolor='darkgreen',
+    ax.hist(x, bins="scott", alpha=0.7, color='green', edgecolor='darkgreen',
             label=f'{bot_name} X', linewidth=0.5)
 
     # Plot Y distribution (overlaid, shifted)
-    ax.hist(y, bins=100, alpha=0.7, color='red', edgecolor='darkred',
+    ax.hist(y, bins="scott", alpha=0.7, color='red', edgecolor='darkred',
             label=f'{bot_name} Y', linewidth=0.5)
 
     # Customize plot
