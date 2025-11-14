@@ -1417,10 +1417,12 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatm
             print(f"  No data found for {matchup_folder}, skipping...")
             continue
 
-        # Apply skip_initial filter if specified
+        # Apply skip_initial filter if specified (per game)
         if skip_initial > 0:
-            print(f"  ⏩ Skipping initial {skip_initial}s of data to remove spawn bias...")
-            df = df.filter(pl.col("UpdatedAt") >= skip_initial)
+            print(f"  ⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
+            df = df.filter(
+                pl.col("UpdatedAt") >= pl.col("UpdatedAt").min().over("GameIndex") + skip_initial
+            )
             if df.is_empty():
                 print(f"  No data remaining after skipping initial {skip_initial}s, skipping matchup...")
                 continue
@@ -1577,8 +1579,10 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                     print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
                     filtered_timer_data = {}
                     for timer, df in timer_data.items():
-                        # Filter out data where UpdatedAt < skip_initial per game
-                        df_filtered = df.filter(pl.col("UpdatedAt") >= skip_initial)
+                        # Filter out data where UpdatedAt < (min_UpdatedAt_for_that_game + skip_initial) per game
+                        df_filtered = df.filter(
+                            pl.col("UpdatedAt") >= pl.col("UpdatedAt").min().over("GameIndex") + skip_initial
+                        )
                         if not df_filtered.is_empty():
                             filtered_timer_data[timer] = df_filtered
                             print(f"  Timer {timer}: {len(df):,} -> {len(df_filtered):,} samples")
@@ -1631,11 +1635,13 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                     print(f"No data found for {bot_name}, skipping...")
                     continue
 
-                # Apply skip_initial filter if specified
+                # Apply skip_initial filter if specified (per game)
                 if skip_initial > 0:
                     print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
                     original_count = len(df_combined)
-                    df_combined = df_combined.filter(pl.col("UpdatedAt") >= skip_initial)
+                    df_combined = df_combined.filter(
+                        pl.col("UpdatedAt") >= pl.col("UpdatedAt").min().over("GameIndex") + skip_initial
+                    )
                     print(f"  Filtered: {original_count:,} -> {len(df_combined):,} samples")
 
                     if df_combined.is_empty():
@@ -1685,11 +1691,13 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                     print(f"No data found for {bot_name}, skipping...")
                     continue
 
-                # Apply skip_initial filter if specified
+                # Apply skip_initial filter if specified (per game)
                 if skip_initial > 0:
                     print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
                     original_count = len(df_combined)
-                    df_combined = df_combined.filter(pl.col("UpdatedAt") >= skip_initial)
+                    df_combined = df_combined.filter(
+                        pl.col("UpdatedAt") >= pl.col("UpdatedAt").min().over("GameIndex") + skip_initial
+                    )
                     print(f"  Filtered: {original_count:,} -> {len(df_combined):,} samples")
 
                     if df_combined.is_empty():
@@ -1728,11 +1736,13 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                 print("\nLoading combined data for position distribution...")
                 df_combined = load_bot_data_from_simulation(base_dir, bot_name, actor_position, chunksize, max_configs, group_by_timer=False)
 
-                # Apply skip_initial filter if specified
+                # Apply skip_initial filter if specified (per game)
                 if skip_initial > 0 and not df_combined.is_empty():
                     print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
                     original_count = len(df_combined)
-                    df_combined = df_combined.filter(pl.col("UpdatedAt") >= skip_initial)
+                    df_combined = df_combined.filter(
+                        pl.col("UpdatedAt") >= pl.col("UpdatedAt").min().over("GameIndex") + skip_initial
+                    )
                     print(f"  Filtered: {original_count:,} -> {len(df_combined):,} samples")
 
             # Check if we have data
