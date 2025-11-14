@@ -28,7 +28,7 @@ def check_game(base_dir, pattern = "game_{i:30}.json", count=50):
         all_ok = False
         for cfg in configs:
             cfg_path = os.path.join(matchup_path, cfg)
-            if "{i}" in pattern:
+            if "{i:30}" in pattern:
                 found = sum(
                     os.path.exists(os.path.join(cfg_path, pattern.format(i=i)))
                     for i in range(count)

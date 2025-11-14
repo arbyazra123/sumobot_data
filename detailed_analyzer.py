@@ -48,22 +48,13 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
         chunksize: Number of rows per chunk (ignored for Polars, kept for API compatibility)
         actor_filter: Filter for specific actor (0 for left, 1 for right, None for both)
     """
-    # Define dtypes to override schema inference - this forces consistent types across all CSVs
-    dtypes = {
-        "GameIndex": pl.Int64,
-        "Actor": pl.Int64,
-        "UpdatedAt": pl.Float64,
-        "BotPosX": pl.Float64,
-        "BotPosY": pl.Float64,
-        "BotRot": pl.Float64,
-    }
+    # Scan CSV without schema enforcement - let Polars infer naturally
+    # Use ignore_errors to handle inconsistent column types across files
+    lf = pl.scan_csv(csv_path, ignore_errors=True)
 
-    # Scan CSV with dtype overrides
-    lf = pl.scan_csv(csv_path, dtypes=dtypes)
-
-    # Filter by actor if specified
+    # Filter by actor if specified, casting Actor inline for comparison
     if actor_filter is not None:
-        lf = lf.filter(pl.col("Actor") == actor_filter)
+        lf = lf.filter(pl.col("Actor").cast(pl.Int64) == actor_filter)
 
     # Drop invalid entries
     lf = lf.drop_nulls(subset=["BotPosX", "BotPosY", "BotRot"])
@@ -1331,7 +1322,7 @@ def load_all_game_data(base_dir, bot1_name=None, bot2_name=None, chunksize=50000
 
     print(f"\nLoaded {total_csvs} CSV files")
     print("Combining all data...")
-    df_combined = pl.concat(all_data)
+    df_combined = pl.concat(all_data, how="vertical_relaxed")
 
     print(f"Total samples: {len(df_combined):,}")
 
@@ -1384,13 +1375,14 @@ def create_distance_over_time_all_bots(base_dir, output_dir="arena_heatmaps", ch
     print("=" * 60)
 
 
-def create_distance_distributions_all_matchups(base_dir, output_dir="distance_distributions", chunksize=50000, max_configs=None):
+def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatmaps", chunksize=50000, max_configs=None):
     """
-    Create distance distribution plots for all matchups
+    Create distance distribution plots per bot (averaged across all matchups).
+    Saves to {output_dir}/{bot_name}/distance_distribution.png
 
     Args:
         base_dir: Base simulation directory
-        output_dir: Output directory for plots
+        output_dir: Output directory (should be arena_heatmaps folder)
         chunksize: Chunk size for reading CSV files
         max_configs: Maximum number of configs to process per matchup
     """
@@ -1400,8 +1392,8 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="distance_di
 
     print(f"Found {len(matchup_folders)} matchup folders")
 
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    # Collect data per bot (across all matchups)
+    bot_distance_data = {}  # {bot_name: [distance_between_series, distance_from_center_series]}
 
     # Process each matchup
     for matchup_folder in matchup_folders:
@@ -1424,18 +1416,89 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="distance_di
             print(f"  No data found for {matchup_folder}, skipping...")
             continue
 
-        # Create distance distribution plot
-        output_path = os.path.join(output_dir, f"{matchup_folder}_distance_distributions.png")
-        fig = plot_distance_distributions(df, bot1_name, bot2_name, output_path)
+        # Calculate distance between bots
+        print("  Calculating distance between bots...")
+        dist_between = calculate_distance_between_bots(df)
 
-        if fig is not None:
-            plt.close(fig)
+        # Calculate distance from center for each bot
+        print("  Calculating distance from center...")
+        df_with_center_dist = calculate_distance_from_center(df)
+
+        # Split by actor - bot1 is actor 0, bot2 is actor 1
+        bot1_center_dist = df_with_center_dist.filter(pl.col("Actor").cast(pl.Int64) == 0)["DistanceFromCenter"]
+        bot2_center_dist = df_with_center_dist.filter(pl.col("Actor").cast(pl.Int64) == 1)["DistanceFromCenter"]
+
+        # Store data for each bot
+        if bot1_name not in bot_distance_data:
+            bot_distance_data[bot1_name] = {"between": [], "from_center": []}
+        if bot2_name not in bot_distance_data:
+            bot_distance_data[bot2_name] = {"between": [], "from_center": []}
+
+        # Add distance between for both bots (it's the same data)
+        bot_distance_data[bot1_name]["between"].append(dist_between["Distance"])
+        bot_distance_data[bot2_name]["between"].append(dist_between["Distance"])
+
+        # Add distance from center for each bot
+        bot_distance_data[bot1_name]["from_center"].append(bot1_center_dist)
+        bot_distance_data[bot2_name]["from_center"].append(bot2_center_dist)
+
+    # Create distance distribution plot for each bot
+    for bot_name, data in bot_distance_data.items():
+        print("\n" + "=" * 60)
+        print(f"Creating distance distribution for {bot_name}...")
+        print("=" * 60)
+
+        # Concatenate all data for this bot
+        combined_between = pl.concat(data["between"])
+        combined_from_center = pl.concat(data["from_center"])
+
+        between_numpy = combined_between.to_numpy()
+        from_center_numpy = combined_from_center.to_numpy()
+
+        # Create 2-subplot figure
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+
+        # Plot 1: Distance between bots (averaged across all matchups)
+        ax1.hist(between_numpy, bins=100, color='steelblue', edgecolor='black', alpha=0.7)
+        ax1.set_title(f"Distance Between {bot_name} and Opponents (All Matchups)", fontsize=14, fontweight='bold')
+        ax1.set_xlabel("Distance Between Bots", fontsize=12)
+        ax1.set_ylabel("Frequency", fontsize=12)
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        ax1.text(0.98, 0.98, f"n={len(between_numpy):,}",
+                transform=ax1.transAxes, ha='right', va='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # Plot 2: Distance from center
+        ax2.hist(from_center_numpy, bins=100, color='green', edgecolor='black', alpha=0.7)
+        ax2.set_title(f"Distance from Center: {bot_name}", fontsize=14, fontweight='bold')
+        ax2.set_xlabel("Distance from Center", fontsize=12)
+        ax2.set_ylabel("Frequency", fontsize=12)
+        ax2.grid(True, alpha=0.3, linestyle='--')
+
+        # Add arena radius reference line
+        ax2.axvline(x=arena_radius, color='red', linestyle='--', linewidth=2,
+                   label=f'Arena Radius ({arena_radius:.2f})', alpha=0.8)
+        ax2.legend(loc='upper right', fontsize=10)
+
+        ax2.text(0.98, 0.98, f"n={len(from_center_numpy):,}",
+                transform=ax2.transAxes, ha='right', va='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        plt.tight_layout()
+
+        # Save to bot's folder
+        bot_output_dir = os.path.join(output_dir, bot_name)
+        os.makedirs(bot_output_dir, exist_ok=True)
+        output_path = os.path.join(bot_output_dir, "distance_distribution.png")
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"  Saved to {output_path}")
+        plt.close(fig)
 
     print("\n" + "=" * 60)
-    print(f"✅ Completed! All distance distribution plots saved to: {output_dir}")
+    print(f"✅ Completed! Distance distribution plots saved in bot folders")
     print("=" * 60)
 
-def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_position="both", chunksize=50000, max_configs=None, mode="all", use_timer=False, include_distance_over_time=True):
+def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_position="both", chunksize=50000, max_configs=None, mode="all", use_timer=False, use_time_windows=False, include_distance_over_time=True, skip_initial=0.0):
     """
     Create heatmaps and position distribution plots for all bots in the simulation directory
     Saves individual phase/timer images for each bot
@@ -1448,7 +1511,9 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
         max_configs: Maximum number of configs to process per matchup
         mode: What to generate - "heatmap", "position", or "all" (default: "all")
         use_timer: If True, group by Timer values instead of phases
+        use_time_windows: If True, group by fixed time windows [0-15s, 15-30s, 30-45s, 45-60s]
         include_distance_over_time: If True, also generate distance over time plot (default: True)
+        skip_initial: Skip initial N seconds of data to remove spawn point bias (default: 0.0)
     """
     # Find all unique bot names from matchup folders
     matchup_folders = [f for f in os.listdir(base_dir)
@@ -1497,6 +1562,18 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                     print(f"No data found for {bot_name}, skipping...")
                     continue
 
+                # Apply skip_initial filter if specified
+                if skip_initial > 0:
+                    print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
+                    filtered_timer_data = {}
+                    for timer, df in timer_data.items():
+                        # Filter out data where UpdatedAt < skip_initial per game
+                        df_filtered = df.filter(pl.col("UpdatedAt") >= skip_initial)
+                        if not df_filtered.is_empty():
+                            filtered_timer_data[timer] = df_filtered
+                            print(f"  Timer {timer}: {len(df):,} -> {len(df_filtered):,} samples")
+                    timer_data = filtered_timer_data
+
                 # Create plots for each timer value
                 for timer in sorted(timer_data.keys()):
                     df = timer_data[timer]
@@ -1535,6 +1612,60 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                     if fig is not None:
                         plt.close(fig)
 
+            elif use_time_windows:
+                # Time window mode - fixed time windows [0-15s, 15-30s, 30-45s, 45-60s]
+                print("\nLoading all data for time window grouping...")
+                df_combined = load_bot_data_from_simulation(base_dir, bot_name, actor_position, chunksize, max_configs, group_by_timer=False)
+
+                if df_combined.is_empty():
+                    print(f"No data found for {bot_name}, skipping...")
+                    continue
+
+                # Apply skip_initial filter if specified
+                if skip_initial > 0:
+                    print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
+                    original_count = len(df_combined)
+                    df_combined = df_combined.filter(pl.col("UpdatedAt") >= skip_initial)
+                    print(f"  Filtered: {original_count:,} -> {len(df_combined):,} samples")
+
+                    if df_combined.is_empty():
+                        print(f"No data remaining after filtering for {bot_name}, skipping...")
+                        continue
+
+                # Define time windows: [0-15s], [15-30s], [30-45s], [45-60s]
+                time_windows = [
+                    (0, 15, "0-15s"),
+                    (15, 30, "15-30s"),
+                    (30, 45, "30-45s"),
+                    (45, 60, "45-60s")
+                ]
+
+                print(f"\nSplitting data into fixed time windows...")
+                # Create plots for each time window
+                for start, end, window_name in time_windows:
+                    # Filter data for this time window
+                    window_df = df_combined.filter(
+                        (pl.col("UpdatedAt") >= start) & (pl.col("UpdatedAt") < end)
+                    )
+
+                    if window_df.is_empty():
+                        print(f"  No data for {window_name}, skipping...")
+                        continue
+
+                    print(f"\nProcessing {window_name}...")
+                    print(f"  Samples: {len(window_df):,}")
+                    print(f"  Time range: {window_df['UpdatedAt'].min():.2f} - {window_df['UpdatedAt'].max():.2f}")
+
+                    # Create joint plot
+                    fig = plot_joint_heatmap_with_distributions(window_df, window_name, bot_name, actor_position)
+
+                    if fig is not None:
+                        # Save with window name in filename
+                        output_path = os.path.join(bot_dir, f"window_{start}-{end}s.png")
+                        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+                        print(f"  Saved to {output_path}")
+                        plt.close(fig)
+
             else:
                 # Phase-based mode (original)
                 print("\nLoading all data...")
@@ -1543,6 +1674,17 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
                 if df_combined.is_empty():
                     print(f"No data found for {bot_name}, skipping...")
                     continue
+
+                # Apply skip_initial filter if specified
+                if skip_initial > 0:
+                    print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
+                    original_count = len(df_combined)
+                    df_combined = df_combined.filter(pl.col("UpdatedAt") >= skip_initial)
+                    print(f"  Filtered: {original_count:,} -> {len(df_combined):,} samples")
+
+                    if df_combined.is_empty():
+                        print(f"No data remaining after filtering for {bot_name}, skipping...")
+                        continue
 
                 print(f"Time range: {df_combined['UpdatedAt'].min():.2f} - {df_combined['UpdatedAt'].max():.2f}")
 
@@ -1572,9 +1714,16 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
         # Generate position distribution if requested
         if mode in ["position", "all"]:
             # Load combined data if not already loaded (needed for position distribution)
-            if use_timer:
+            if use_timer or use_time_windows:
                 print("\nLoading combined data for position distribution...")
                 df_combined = load_bot_data_from_simulation(base_dir, bot_name, actor_position, chunksize, max_configs, group_by_timer=False)
+
+                # Apply skip_initial filter if specified
+                if skip_initial > 0 and not df_combined.is_empty():
+                    print(f"\n⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
+                    original_count = len(df_combined)
+                    df_combined = df_combined.filter(pl.col("UpdatedAt") >= skip_initial)
+                    print(f"  Filtered: {original_count:,} -> {len(df_combined):,} samples")
 
             # Check if we have data
             if 'df_combined' in locals() and not df_combined.is_empty():
@@ -1639,13 +1788,22 @@ Examples:
   python detailed_analyzer.py distance-time "/custom/path" -o distance_time_output
 
   # Run ALL analyses at once (heatmaps, position distributions, distance plots)
-  python detailed_analyzer.py all-analysis
+  python detailed_analyzer.py all
+
+  # All analyses with Timer grouping and skip initial 0.5s spawn data
+  python detailed_analyzer.py all --use-timer --skip-initial=0.5
+
+  # All analyses with fixed time windows [0-15s, 15-30s, 30-45s, 45-60s]
+  python detailed_analyzer.py all --use-time-windows
 
   # Run all analyses with timer-based grouping
-  python detailed_analyzer.py all-analysis --use-timer
+  python detailed_analyzer.py all --use-timer
 
-  # Test mode: process only 1 config per matchup for quick testing
-  python detailed_analyzer.py all-analysis --test --use-timer
+  # Test mode: process only 1 config per matchup (default)
+  python detailed_analyzer.py all --test --use-timer
+
+  # Test mode: process 5 configs per matchup
+  python detailed_analyzer.py all --test=5 --use-timer
         """
     )
 
@@ -1674,13 +1832,11 @@ Examples:
                            help="Group by Timer values from config instead of phases (early/mid/late)")
 
     # All bots mode
-    all_parser = subparsers.add_parser("all", help="Generate visualizations for all bots")
-    all_parser.add_argument("mode", nargs='?', default="all", choices=["heatmap", "position", "all"],
-                           help="What to generate: 'heatmap' (arena heatmaps), 'position' (position distribution plots), or 'all' (both) (default: all)")
+    all_parser = subparsers.add_parser("all", help="Run ALL analyses: heatmaps, position distributions, distance distributions")
     all_parser.add_argument("base_dir", nargs='?', default=default_base_dir,
                            help=f"Base simulation directory (default: {default_base_dir})")
-    all_parser.add_argument("-o", "--output", default="arena_heatmap",
-                           help="Output directory for visualizations (default: arena_heatmap)")
+    all_parser.add_argument("-o", "--output", default="analysis_output",
+                           help="Base output directory for all visualizations (default: analysis_output)")
     all_parser.add_argument("-p", "--position", choices=["left", "right", "both"], default="both",
                            help="Analyze bot when on left side, right side, or both (default: both)")
     all_parser.add_argument("-c", "--chunksize", type=int, default=50000,
@@ -1689,13 +1845,19 @@ Examples:
                            help="Maximum number of config folders to process per matchup (for testing)")
     all_parser.add_argument("--use-timer", action="store_true",
                            help="Group by Timer values from config instead of phases (early/mid/late)")
+    all_parser.add_argument("--use-time-windows", action="store_true",
+                           help="Group by fixed time windows: [0-15s], [15-30s], [30-45s], [45-60s]")
+    all_parser.add_argument("--skip-initial", type=float, default=0.0,
+                           help="Skip initial N seconds of data to remove spawn point bias (default: 0.0)")
+    all_parser.add_argument("--test", type=int, nargs='?', const=1, default=None,
+                           help="Test mode: process only N configs per matchup for quick testing (default: 1 if flag is used)")
 
     # Distance distributions mode
-    distance_parser = subparsers.add_parser("distance", help="Generate distance distribution plots for all matchups")
+    distance_parser = subparsers.add_parser("distance", help="Generate distance distribution plots per bot (averaged across matchups)")
     distance_parser.add_argument("base_dir", nargs='?', default=default_base_dir,
                                 help=f"Base simulation directory (default: {default_base_dir})")
     distance_parser.add_argument("-o", "--output", default="distance_distributions",
-                                help="Output directory for distance plots (default: distance_distributions)")
+                                help="Output directory for distance plots - creates bot subfolders (default: distance_distributions)")
     distance_parser.add_argument("-c", "--chunksize", type=int, default=50000,
                                 help="Chunk size for reading CSV files (default: 50000)")
     distance_parser.add_argument("--max-configs", type=int,
@@ -1711,23 +1873,6 @@ Examples:
                                      help="Chunk size for reading CSV files (default: 50000)")
     distance_time_parser.add_argument("--max-configs", type=int,
                                      help="Maximum number of config folders to process per matchup (for testing)")
-
-    # All-in-one analysis mode
-    all_analysis_parser = subparsers.add_parser("all-analysis", help="Run ALL analyses: heatmaps, position distributions, distance distributions, and distance over time")
-    all_analysis_parser.add_argument("base_dir", nargs='?', default=default_base_dir,
-                                    help=f"Base simulation directory (default: {default_base_dir})")
-    all_analysis_parser.add_argument("-o", "--output", default="analysis_output",
-                                    help="Base output directory for all visualizations (default: analysis_output)")
-    all_analysis_parser.add_argument("-p", "--position", choices=["left", "right", "both"], default="both",
-                                    help="Analyze bot when on left side, right side, or both (default: both)")
-    all_analysis_parser.add_argument("-c", "--chunksize", type=int, default=50000,
-                                    help="Chunk size for reading CSV files (default: 50000)")
-    all_analysis_parser.add_argument("--max-configs", type=int,
-                                    help="Maximum number of config folders to process per matchup (for testing)")
-    all_analysis_parser.add_argument("--use-timer", action="store_true",
-                                    help="Group by Timer values from config instead of phases (early/mid/late)")
-    all_analysis_parser.add_argument("--test", action="store_true",
-                                    help="Test mode: process only 1 config per matchup for quick testing")
 
     args = parser.parse_args()
 
@@ -1747,36 +1892,22 @@ Examples:
         )
 
     elif args.command == "all":
-        create_phased_heatmaps_all_bots(
-            args.base_dir,
-            args.output,
-            args.position,
-            args.chunksize,
-            args.max_configs,
-            args.mode,
-            args.use_timer
-        )
+        # Validate that only one grouping mode is selected
+        if args.use_timer and args.use_time_windows:
+            print("❌ Error: Cannot use both --use-timer and --use-time-windows at the same time")
+            print("   Please choose only one grouping mode:")
+            print("   - --use-timer: Group by Timer config values")
+            print("   - --use-time-windows: Group by fixed time windows [0-15s, 15-30s, 30-45s, 45-60s]")
+            print("   - (default): Group by phases (early/mid/late)")
+            exit(1)
 
-    elif args.command == "distance":
-        create_distance_distributions_all_matchups(
-            args.base_dir,
-            args.output,
-            args.chunksize,
-            args.max_configs
-        )
-
-    elif args.command == "distance-time":
-        create_distance_over_time_all_bots(
-            args.base_dir,
-            args.output,
-            args.chunksize,
-            args.max_configs
-        )
-
-    elif args.command == "all-analysis":
         # Handle test mode
-        max_configs = 1 if args.test else args.max_configs
-        mode_text = "🧪 TEST MODE (1 config per matchup)" if args.test else "🚀 Running ALL Analyses"
+        if args.test is not None:
+            max_configs = args.test
+            mode_text = f"🧪 TEST MODE ({args.test} config(s) per matchup)"
+        else:
+            max_configs = args.max_configs
+            mode_text = "🚀 Running ALL Analyses"
 
         print("=" * 60)
         print(mode_text)
@@ -1794,19 +1925,52 @@ Examples:
             heatmap_dir,
             args.position,
             args.chunksize,
-            max_configs,  # Use 1 if --test flag is set
+            max_configs,  # Use test value if --test flag is set
             "all",  # Generate both heatmaps and position distributions
             args.use_timer,
-            include_distance_over_time=False
+            args.use_time_windows,
+            include_distance_over_time=True,  # Generate distance plots (only with --use-timer)
+            skip_initial=args.skip_initial
+        )
+
+        # Generate distance distributions for each bot
+        print("\n" + "=" * 60)
+        print("Generating distance distributions for each bot...")
+        print("=" * 60)
+        create_distance_distributions_all_matchups(
+            args.base_dir,
+            heatmap_dir,  # Save to existing arena_heatmaps folder
+            args.chunksize,
+            max_configs
         )
 
         print("\n" + "=" * 60)
         print("ALL ANALYSES COMPLETED!")
         print("=" * 60)
         print(f"All outputs saved to: {base_output}")
-        print("\nGenerated:")
-        print(f"Arena heatmaps, position distributions, and distance plots: {heatmap_dir}")
+        print("\nGenerated in each bot folder:")
+        print(f"  - Arena heatmaps")
+        print(f"  - Position distributions")
+        print(f"  - Distance distributions (distance_distribution.png)")
+        if args.use_timer:
+            print(f"  - Distance over time plots")
         print("=" * 60)
+
+    elif args.command == "distance":
+        create_distance_distributions_all_matchups(
+            args.base_dir,
+            args.output,
+            args.chunksize,
+            args.max_configs
+        )
+
+    elif args.command == "distance-time":
+        create_distance_over_time_all_bots(
+            args.base_dir,
+            args.output,
+            args.chunksize,
+            args.max_configs
+        )
 
     else:
         parser.print_help()

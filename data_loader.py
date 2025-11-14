@@ -17,22 +17,13 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
         chunksize: Number of rows per chunk (ignored for Polars, kept for API compatibility)
         actor_filter: Filter for specific actor (0 for left, 1 for right, None for both)
     """
-    # Define dtypes to override schema inference - this forces consistent types across all CSVs
-    dtypes = {
-        "GameIndex": pl.Int64,
-        "Actor": pl.Int64,
-        "UpdatedAt": pl.Float64,
-        "BotPosX": pl.Float64,
-        "BotPosY": pl.Float64,
-        "BotRot": pl.Float64,
-    }
+    # Scan CSV without schema enforcement - let Polars infer naturally
+    # Use ignore_errors to handle inconsistent column types across files
+    lf = pl.scan_csv(csv_path, ignore_errors=True)
 
-    # Scan CSV with dtype overrides
-    lf = pl.scan_csv(csv_path, dtypes=dtypes)
-
-    # Filter by actor if specified
+    # Filter by actor if specified, casting Actor inline for comparison
     if actor_filter is not None:
-        lf = lf.filter(pl.col("Actor") == actor_filter)
+        lf = lf.filter(pl.col("Actor").cast(pl.Int64) == actor_filter)
 
     # Drop invalid entries
     lf = lf.drop_nulls(subset=["BotPosX", "BotPosY", "BotRot"])
