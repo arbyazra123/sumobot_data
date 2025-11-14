@@ -1375,7 +1375,7 @@ def create_distance_over_time_all_bots(base_dir, output_dir="arena_heatmaps", ch
     print("=" * 60)
 
 
-def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatmaps", chunksize=50000, max_configs=None):
+def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatmaps", chunksize=50000, max_configs=None, skip_initial=0.0):
     """
     Create distance distribution plots per bot (averaged across all matchups).
     Saves to {output_dir}/{bot_name}/distance_distribution.png
@@ -1385,6 +1385,7 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatm
         output_dir: Output directory (should be arena_heatmaps folder)
         chunksize: Chunk size for reading CSV files
         max_configs: Maximum number of configs to process per matchup
+        skip_initial: Skip initial N seconds of data to remove spawn point bias (default: 0.0)
     """
     # Find all matchup folders
     matchup_folders = [f for f in os.listdir(base_dir)
@@ -1415,6 +1416,15 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatm
         if df.is_empty():
             print(f"  No data found for {matchup_folder}, skipping...")
             continue
+
+        # Apply skip_initial filter if specified
+        if skip_initial > 0:
+            print(f"  ⏩ Skipping initial {skip_initial}s of data to remove spawn bias...")
+            df = df.filter(pl.col("UpdatedAt") >= skip_initial)
+            if df.is_empty():
+                print(f"  No data remaining after skipping initial {skip_initial}s, skipping matchup...")
+                continue
+            print(f"  Samples after filter: {len(df):,}")
 
         # Calculate distance between bots
         print("  Calculating distance between bots...")
@@ -1941,7 +1951,8 @@ Examples:
             args.base_dir,
             heatmap_dir,  # Save to existing arena_heatmaps folder
             args.chunksize,
-            max_configs
+            max_configs,
+            skip_initial=args.skip_initial
         )
 
         print("\n" + "=" * 60)
