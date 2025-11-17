@@ -19,9 +19,9 @@ try:
     # Try a simple GPU operation to check availability
     pl.LazyFrame({"test": [1]}).collect(engine="gpu")
     GPU_AVAILABLE = True
-    print("✅ GPU support available - will use GPU acceleration")
+    print("GPU support available - will use GPU acceleration")
 except Exception:
-    print("✅ Using CPU (GPU not available)")
+    print("Using CPU (GPU not available)")
 
 
 def collect_with_gpu(lf):
@@ -434,14 +434,14 @@ def batch_process_csvs(base_dir, batch_size=50, checkpoint_dir="batched", time_b
 
         # Skip if already processed
         if batch_num in processed_batches:
-            print(f"⏭️  Skipping batch {batch_num}/{total_batches} (already processed)")
+            print(f"Skipping batch {batch_num}/{total_batches} (already processed)")
             continue
 
         start_idx = batch_idx * batch_size
         end_idx = min(start_idx + batch_size, len(all_csvs))
         batch_csvs = all_csvs[start_idx:end_idx]
 
-        print(f"\n📊 Processing batch {batch_num}/{total_batches} ({len(batch_csvs)} files)...")
+        print(f"\nProcessing batch {batch_num}/{total_batches} ({len(batch_csvs)} files)...")
 
         batch_df, action_timebin_df, collision_timebin_df = process_batch_csvs(
             batch_csvs, checkpoint_dir, time_bin_size=time_bin_size, compute_timebins=compute_timebins
@@ -451,19 +451,19 @@ def batch_process_csvs(base_dir, batch_size=50, checkpoint_dir="batched", time_b
         if batch_df is not None:
             batch_path = os.path.join(checkpoint_dir, f"batch_{batch_num:02d}.csv")
             batch_df.write_csv(batch_path)
-            print(f"✅ Saved batch checkpoint: {batch_path}")
+            print(f"Saved batch checkpoint: {batch_path}")
 
         # Save timebin batches if computed
         if compute_timebins:
             if action_timebin_df is not None:
                 action_path = os.path.join(action_timebin_dir, f"batch_{batch_num:02d}.csv")
                 action_timebin_df.write_csv(action_path)
-                print(f"✅ Saved action timebin batch: {action_path}")
+                print(f"Saved action timebin batch: {action_path}")
 
             if collision_timebin_df is not None:
                 collision_path = os.path.join(collision_timebin_dir, f"batch_{batch_num:02d}.csv")
                 collision_timebin_df.write_csv(collision_path)
-                print(f"✅ Saved collision timebin batch: {collision_path}")
+                print(f"Saved collision timebin batch: {collision_path}")
 
 
 def create_summary_matchup(all_games):
@@ -544,7 +544,7 @@ def create_summary_matchup(all_games):
 
     # Save to CSV
     matchup_summary.write_csv("summary_matchup.csv")
-    print("✅ Saved summary_matchup.csv")
+    print("Saved summary_matchup.csv")
 
     return matchup_summary
 
@@ -613,7 +613,7 @@ def create_summary_bot(matchup_summary):
 
     # Save
     bot_summary.write_csv("summary_bot.csv")
-    print("✅ Saved summary_bot.csv")
+    print("Saved summary_bot.csv")
 
     return bot_summary
 
@@ -633,9 +633,9 @@ def generate_timebins_from_batches():
         print(f"\n📂 Loading {len(action_batch_files)} action timebin batch files...")
         action_lazy_frames = [pl.scan_csv(f) for f in action_batch_files]
         action_timebin_df = collect_with_gpu(pl.concat(action_lazy_frames))
-        print(f"✅ Loaded {len(action_timebin_df):,} action timebin records")
+        print(f"Loaded {len(action_timebin_df):,} action timebin records")
 
-        print("\n📊 Creating action time-bin summary...")
+        print("\n Creating action time-bin summary...")
         summarize_action_timebins(action_timebin_df)
 
     # Load collision timebin batches
@@ -644,9 +644,9 @@ def generate_timebins_from_batches():
         print(f"\n📂 Loading {len(collision_batch_files)} collision timebin batch files...")
         collision_lazy_frames = [pl.scan_csv(f) for f in collision_batch_files]
         collision_timebin_df = collect_with_gpu(pl.concat(collision_lazy_frames))
-        print(f"✅ Loaded {len(collision_timebin_df):,} collision timebin records")
+        print(f"Loaded {len(collision_timebin_df):,} collision timebin records")
 
-        print("\n📊 Creating collision time-bin summary...")
+        print("\n Creating collision time-bin summary...")
         summarize_collision_timebins(collision_timebin_df)
 
     print("\n" + "=" * 60)
@@ -677,7 +677,7 @@ def compute_collision_time_bins_from_csvs(base_dir, time_bin_size=5):
             csv_files = glob.glob(os.path.join(config_path, "*.csv"))
             all_csvs.extend([(csv, matchup_folder, config_folder) for csv in csv_files])
 
-    print(f"📊 Computing time-binned collision data from {len(all_csvs)} CSV files...")
+    print(f" Computing time-binned collision data from {len(all_csvs)} CSV files...")
 
     collision_fragment_list = []
 
@@ -744,7 +744,7 @@ def compute_collision_time_bins_from_csvs(base_dir, time_bin_size=5):
                 })
 
     collision_fragment_df = pl.DataFrame(collision_fragment_list)
-    print(f"✅ Computed {len(collision_fragment_df):,} collision time-binned records")
+    print(f"Computed {len(collision_fragment_df):,} collision time-binned records")
 
     return collision_fragment_df
 
@@ -754,7 +754,7 @@ def summarize_action_timebins(time_fragment_df):
     Summarize action time fragment data with GPU acceleration.
     Computes mean counts per bot/config/timebin/action.
     """
-    print("📊 Summarizing action time-binned data...")
+    print(" Summarizing action time-binned data...")
 
     # Use lazy frames for GPU acceleration
     summary_lazy = time_fragment_df.lazy().group_by(
@@ -767,7 +767,7 @@ def summarize_action_timebins(time_fragment_df):
 
     # Save CSV
     summary.write_csv("summary_action_timebins.csv")
-    print("✅ Saved summary_action_timebins.csv")
+    print("Saved summary_action_timebins.csv")
 
     return summary
 
@@ -777,7 +777,7 @@ def summarize_collision_timebins(collision_fragment_df):
     Calculate collision time fragment data with GPU acceleration.
     Aggregates Actor, Target, Tie counts per config/timebin.
     """
-    print("📊 Creating collision detail time-binned data...")
+    print(" Creating collision detail time-binned data...")
 
     # Use lazy frames for GPU acceleration
     summary_lazy = collision_fragment_df.lazy().group_by(
@@ -792,7 +792,7 @@ def summarize_collision_timebins(collision_fragment_df):
 
     # Save CSV
     summary.write_csv("summary_collision_timebins.csv")
-    print("✅ Saved summary_collision_timebins.csv")
+    print("Saved summary_collision_timebins.csv")
 
     return summary
 
@@ -826,13 +826,13 @@ def generate():
     print("🔄 Collecting all games...")
     all_games = collect_with_gpu(all_games_lazy)
 
-    print(f"✅ Loaded {len(all_games):,} games")
+    print(f"Loaded {len(all_games):,} games")
 
     # Create summaries with Polars
-    print("\n📊 Creating matchup summary...")
+    print("\n Creating matchup summary...")
     matchup_summary = create_summary_matchup(all_games)
 
-    print("\n📊 Creating bot summary...")
+    print("\n Creating bot summary...")
     bot_summary = create_summary_bot(matchup_summary)
 
     print("\n" + "=" * 60)

@@ -70,7 +70,7 @@ if __name__ == "__main__":
     st.markdown("Visualize bot movement patterns across different game phases (Early, Mid, Late)")
 
     # Check if arena_heatmap directory exists
-    heatmap_dir = "arena_heatmap"
+    heatmap_dir = "analysis_output/arena_heatmaps"
 
     if os.path.exists(heatmap_dir):
         # Get all bot directories
@@ -78,18 +78,18 @@ if __name__ == "__main__":
                           if os.path.isdir(os.path.join(heatmap_dir, d))])
 
         if bot_dirs:
-            phase_names = ["Early Game", "Mid Game", "Late Game"]
+            phase_names = ["window_0-15s.png", "window_15-30s.png", "window_30-45s.png","window_45-60s.png"]
 
             # Display heatmaps for each bot
             for bot_name in bot_dirs:
                 toc.h3(f"{bot_name}")
                 bot_dir = os.path.join(heatmap_dir, bot_name)
 
-                # Create 3 columns for the 3 phases
-                cols = st.columns(3)
+                # Create n columns for the n phases
+                cols = st.columns(len(phase_names))
 
                 for idx, (col, phase_name) in enumerate(zip(cols, phase_names)):
-                    image_path = os.path.join(bot_dir, f"{idx}.png")
+                    image_path = os.path.join(bot_dir, f"{phase_name}")
 
                     with col:
                         st.markdown(f"**{phase_name}**")
@@ -97,12 +97,21 @@ if __name__ == "__main__":
                             image = Image.open(image_path)
                             st.image(image, use_container_width=True)
                         else:
-                            st.warning(f"Image not found: {idx}.png")
+                            st.warning(f"Image not found: {phase_name}")
 
                 # Display position distribution
                 dist_path = os.path.join(bot_dir, "position_distribution.png")
                 if os.path.exists(dist_path):
                     st.markdown("**Position Distribution (X & Y Overlayed)**")
+                    dist_image = Image.open(dist_path)
+                    st.image(dist_image, use_container_width=True)
+
+                st.divider()
+
+                # Display distance distribution
+                dist_path = os.path.join(bot_dir, "distance_distribution.png")
+                if os.path.exists(dist_path):
+                    st.markdown("**Distance Distribution")
                     dist_image = Image.open(dist_path)
                     st.image(dist_image, use_container_width=True)
 

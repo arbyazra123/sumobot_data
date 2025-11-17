@@ -222,11 +222,11 @@ def plot_position_distribution(df_combined, bot_name, actor_position="both"):
     fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
     # Plot X distribution
-    ax.hist(x, bins="scott", alpha=0.7, color='green', edgecolor='darkgreen',
+    ax.hist(x, bins=30, alpha=0.7, color='green', edgecolor='darkgreen',
             label=f'{bot_name} X', linewidth=0.5)
 
     # Plot Y distribution (overlaid, shifted)
-    ax.hist(y, bins="scott", alpha=0.7, color='red', edgecolor='darkred',
+    ax.hist(y, bins=30, alpha=0.7, color='red', edgecolor='darkred',
             label=f'{bot_name} Y', linewidth=0.5)
 
     # Customize plot
@@ -846,7 +846,7 @@ def plot_distance_histogram_from_data(distance_data, bot_name, output_path=None)
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Plot histogram
-    ax.hist(distances, bins=100, color='steelblue', edgecolor='black', alpha=0.7, linewidth=0.5)
+    ax.hist(distances, bins=30, color='steelblue', edgecolor='black', alpha=0.7, linewidth=0.5)
 
     # Customize plot
     ax.set_xlabel("Distance Between Bots", fontsize=12)
@@ -909,7 +909,7 @@ def plot_distance_from_center_histogram(bot_data, bot_name, output_path=None):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Plot histogram
-    ax.hist(distances, bins=100, color='green', edgecolor='darkgreen', alpha=0.7, linewidth=0.5)
+    ax.hist(distances, bins=30, color='green', edgecolor='darkgreen', alpha=0.7, linewidth=0.5)
 
     # Add arena radius line
     ax.axvline(arena_radius, color='red', linestyle='--', linewidth=2, label=f'Arena Radius ({arena_radius:.2f})')
@@ -1218,7 +1218,7 @@ def plot_distance_distributions(df, bot1_name="Bot 1", bot2_name="Bot 2", output
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 
     # Plot 1: Distance between bots
-    ax1.hist(dist_between["Distance"].to_numpy(), bins=100, color='steelblue', edgecolor='black', alpha=0.7)
+    ax1.hist(dist_between["Distance"].to_numpy(), bins=30, color='steelblue', edgecolor='black', alpha=0.7)
     ax1.set_title("Distribution of Distance Between Bots", fontsize=14, fontweight='bold')
     ax1.set_xlabel("Distance Between Bots", fontsize=12)
     ax1.set_ylabel("Frequency", fontsize=12)
@@ -1471,7 +1471,7 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatm
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 
         # Plot 1: Distance between bots (averaged across all matchups)
-        ax1.hist(between_numpy, bins=100, color='steelblue', edgecolor='black', alpha=0.7)
+        ax1.hist(between_numpy, bins=30, color='steelblue', edgecolor='black', alpha=0.7)
         ax1.set_title(f"Distance Between {bot_name} and Opponents (All Matchups)", fontsize=14, fontweight='bold')
         ax1.set_xlabel("Distance Between Bots", fontsize=12)
         ax1.set_ylabel("Frequency", fontsize=12)
@@ -1481,7 +1481,7 @@ def create_distance_distributions_all_matchups(base_dir, output_dir="arena_heatm
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         # Plot 2: Distance from center
-        ax2.hist(from_center_numpy, bins=100, color='green', edgecolor='black', alpha=0.7)
+        ax2.hist(from_center_numpy, bins=30, color='green', edgecolor='black', alpha=0.7)
         ax2.set_title(f"Distance from Center: {bot_name}", fontsize=14, fontweight='bold')
         ax2.set_xlabel("Distance from Center", fontsize=12)
         ax2.set_ylabel("Frequency", fontsize=12)
@@ -1855,8 +1855,8 @@ Examples:
     all_parser = subparsers.add_parser("all", help="Run ALL analyses: heatmaps, position distributions, distance distributions")
     all_parser.add_argument("base_dir", nargs='?', default=default_base_dir,
                            help=f"Base simulation directory (default: {default_base_dir})")
-    all_parser.add_argument("-o", "--output", default="analysis_output",
-                           help="Base output directory for all visualizations (default: analysis_output)")
+    all_parser.add_argument("-o", "--output", default="arena_heatmaps",
+                           help="Base output directory for all visualizations (default: arena_heatmaps)")
     all_parser.add_argument("-p", "--position", choices=["left", "right", "both"], default="both",
                            help="Analyze bot when on left side, right side, or both (default: both)")
     all_parser.add_argument("-c", "--chunksize", type=int, default=50000,
@@ -1939,7 +1939,7 @@ Examples:
         print("\n" + "=" * 60)
         print("Generating all visualizations...")
         print("=" * 60)
-        heatmap_dir = os.path.join(base_output, "arena_heatmaps")
+        heatmap_dir = os.path.join(base_output)
         create_phased_heatmaps_all_bots(
             args.base_dir,
             heatmap_dir,

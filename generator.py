@@ -12,7 +12,7 @@ from functools import lru_cache
 import numpy as np
 
 
-def check_game(base_dir, pattern = "game_{i:30}.json", count=50):
+def check_game(base_dir, pattern = "game_{i:03}.json", count=50):
     if not os.path.exists(base_dir):
         print(f"❌ BASE_DIR does not exist: {base_dir}")
         return
@@ -28,7 +28,7 @@ def check_game(base_dir, pattern = "game_{i:30}.json", count=50):
         all_ok = False
         for cfg in configs:
             cfg_path = os.path.join(matchup_path, cfg)
-            if "{i:30}" in pattern:
+            if "{i:03}" in pattern:
                 found = sum(
                     os.path.exists(os.path.join(cfg_path, pattern.format(i=i)))
                     for i in range(count)
