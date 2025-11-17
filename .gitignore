@@ -6,3 +6,4 @@ batched/*.parquet
 *.duckdb
 arena_heatmap
 analysis_output
+arena_heatmaps

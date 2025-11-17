@@ -149,8 +149,8 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
                 ha='center', va='center', transform=ax.transAxes)
         return
 
-    x = phase_df["BotPosX"].to_numpy() - 0.24
-    y = phase_df["BotPosY"].to_numpy() - 1.97  # Shift Y by -1.97 (start position is at y=1.97)
+    x = phase_df["BotPosX"].to_numpy() - arena_center[0]
+    y = phase_df["BotPosY"].to_numpy() - arena_center[1]  # Shift by arena center
 
     # Create 2D kernel density estimation for smooth contours
     if len(x) > 1:
@@ -161,9 +161,9 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
             xy = np.vstack([x, y])
             kde = gaussian_kde(xy)
 
-            # Create grid for evaluation (Y shifted by -2)
-            x_min, x_max = arena_center[0] - arena_radius - 1, arena_center[0] + arena_radius + 1
-            y_min, y_max = (arena_center[1] - 2) - arena_radius - 1, (arena_center[1] - 2) + arena_radius + 1
+            # Create grid for evaluation (data shifted by arena_center, so center is at origin)
+            x_min, x_max = 0 - arena_radius - 1, 0 + arena_radius + 1
+            y_min, y_max = 0 - arena_radius - 1, 0 + arena_radius + 1
 
             xx, yy = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
             positions = np.vstack([xx.ravel(), yy.ravel()])
@@ -180,8 +180,8 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
             print(f"Warning: KDE failed for {phase_name}, using scatter plot. Error: {e}")
             ax.scatter(x, y, alpha=0.1, s=1, c='green', zorder=1)
 
-    # Draw arena boundary AFTER contours so it appears on top (Y shifted by -2)
-    arena_center_shifted = np.array([arena_center[0], arena_center[1] - 2])
+    # Draw arena boundary AFTER contours so it appears on top (data shifted by arena_center)
+    arena_center_shifted = np.array([0, 0])  # Center is at origin after shift
     circle = plt.Circle(arena_center_shifted, arena_radius,
                        fill=False, edgecolor="red",
                        linewidth=2, linestyle="--", zorder=3)
@@ -189,12 +189,12 @@ def plot_phase_heatmap(ax, phase_df, phase_name):
 
     # Labels & Arena Bounds
     ax.set_title(f"{phase_name}\n(n={len(phase_df):,} samples)")
-    ax.set_xlabel("BotPosX")
-    ax.set_ylabel("BotPosY")
+    ax.set_xlabel("BotPosX (shifted)")
+    ax.set_ylabel("BotPosY (shifted)")
     ax.set_aspect("equal", adjustable="box")
 
-    ax.set_xlim(arena_center[0] - arena_radius - 1, arena_center[0] + arena_radius + 1)
-    ax.set_ylim((arena_center[1] - 2) - arena_radius - 1, (arena_center[1] - 2) + arena_radius + 1)
+    ax.set_xlim(0 - arena_radius - 1, 0 + arena_radius + 1)
+    ax.set_ylim(0 - arena_radius - 1, 0 + arena_radius + 1)
 
     # Add grid
     ax.grid(True, alpha=0.3, zorder=0)
@@ -216,8 +216,8 @@ def plot_position_distribution(df_combined, bot_name, actor_position="both"):
     if df_combined.is_empty():
         return None
 
-    x = df_combined["BotPosX"].to_numpy()
-    y = df_combined["BotPosY"].to_numpy() - 2  # Shift Y by -2 (start position is at y=2)
+    x = df_combined["BotPosX"].to_numpy() - arena_center[0]
+    y = df_combined["BotPosY"].to_numpy() - arena_center[1]  # Shift by arena center
 
     # Create figure with single subplot
     fig, ax = plt.subplots(1, 1, figsize=(12, 6))
@@ -234,7 +234,7 @@ def plot_position_distribution(df_combined, bot_name, actor_position="both"):
     position_text = f" ({actor_position} side)" if actor_position != "both" else ""
     ax.set_title(f"Distribution of {bot_name} Positions (Overlayed){position_text}\n(n={len(df_combined):,} samples)",
                 fontsize=14, fontweight='bold')
-    ax.set_xlabel("Position (Y shifted by -2 from start)", fontsize=12)
+    ax.set_xlabel("Position (shifted by arena center)", fontsize=12)
     ax.set_ylabel("Frequency", fontsize=12)
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3, linestyle='--')
@@ -260,8 +260,8 @@ def plot_joint_heatmap_with_distributions(phase_df, phase_name, bot_name="", act
     if phase_df.is_empty():
         return None
 
-    x = phase_df["BotPosX"].to_numpy()
-    y = phase_df["BotPosY"].to_numpy() - 2  # Shift Y by -2 (start position is at y=2)
+    x = phase_df["BotPosX"].to_numpy() - arena_center[0]
+    y = phase_df["BotPosY"].to_numpy() - arena_center[1]  # Shift by arena center
 
     # Create figure with GridSpec for joint plot layout
     from matplotlib.gridspec import GridSpec
@@ -290,9 +290,9 @@ def plot_joint_heatmap_with_distributions(phase_df, phase_name, bot_name="", act
             xy = np.vstack([x, y])
             kde = gaussian_kde(xy)
 
-            # Create grid for evaluation (Y shifted by -2)
-            x_min, x_max = arena_center[0] - arena_radius - 1, arena_center[0] + arena_radius + 1
-            y_min, y_max = (arena_center[1] - 2) - arena_radius - 1, (arena_center[1] - 2) + arena_radius + 1
+            # Create grid for evaluation (data shifted by arena_center, so center is at origin)
+            x_min, x_max = 0 - arena_radius - 1, 0 + arena_radius + 1
+            y_min, y_max = 0 - arena_radius - 1, 0 + arena_radius + 1
 
             xx, yy = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
             positions = np.vstack([xx.ravel(), yy.ravel()])
@@ -318,18 +318,18 @@ def plot_joint_heatmap_with_distributions(phase_df, phase_name, bot_name="", act
             ax_main.scatter(x, y, alpha=0.1, s=1, c='green', zorder=1)
 
     # Draw arena boundary (Y shifted by -2)
-    arena_center_shifted = np.array([arena_center[0], arena_center[1] - 2])
+    arena_center_shifted = np.array([0, 0])  # Center is at origin after shift
     circle = plt.Circle(arena_center_shifted, arena_radius,
                        fill=False, edgecolor="red",
                        linewidth=2, linestyle="--", zorder=3)
     ax_main.add_artist(circle)
 
     # Configure main axis
-    ax_main.set_xlabel("X Position", fontsize=12)
-    ax_main.set_ylabel("Y Position", fontsize=12)
+    ax_main.set_xlabel("X Position (shifted)", fontsize=12)
+    ax_main.set_ylabel("Y Position (shifted)", fontsize=12)
     ax_main.set_aspect("equal", adjustable="box")
-    ax_main.set_xlim(arena_center[0] - arena_radius - 1, arena_center[0] + arena_radius + 1)
-    ax_main.set_ylim((arena_center[1] - 2) - arena_radius - 1, (arena_center[1] - 2) + arena_radius + 1)
+    ax_main.set_xlim(0 - arena_radius - 1, 0 + arena_radius + 1)
+    ax_main.set_ylim(0 - arena_radius - 1, 0 + arena_radius + 1)
     ax_main.grid(True, alpha=0.3, zorder=0)
 
     # Plot marginal distributions
