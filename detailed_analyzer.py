@@ -1651,7 +1651,7 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
 
                 # Define time windows: [0-15s], [15-30s], [30-45s], [45-60s]
                 time_windows = [
-                    (0, 15, "0-15s"),
+                    (skip_initial, 15, f"{skip_initial}-15s") if skip_initial > 0 else (0, 15, "0-15s"),
                     (15, 30, "15-30s"),
                     (30, 45, "30-45s"),
                     (45, 60, "45-60s")

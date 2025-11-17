@@ -19,6 +19,38 @@ def escape_csv(value: str) -> str:
     return value
 
 
+def safe_int(value, default="") -> str:
+    """Convert to int string, return default if None/empty."""
+    if value is None or value == "":
+        return default
+    try:
+        return str(int(value))
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_float(value, default="") -> str:
+    """Convert to float string with consistent precision, return default if None/empty."""
+    if value is None or value == "":
+        return default
+    try:
+        return f"{float(value):.10g}"  # Use general format, up to 10 significant digits
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_bool(value) -> str:
+    """Convert boolean to '1' or '0'."""
+    return "1" if value else "0"
+
+
+def safe_str(value, default="") -> str:
+    """Convert to string, handling None."""
+    if value is None or value == "":
+        return default
+    return str(value)
+
+
 def convert_logs_to_csv(folder_path: str, output_path: str):
     """Convert all game_*.json files in folder to one CSV."""
     csv_rows = []
@@ -48,89 +80,90 @@ def convert_logs_to_csv(folder_path: str, output_path: str):
                     continue
 
                 row = {
-                    "GameIndex": str(game_index + 1),
+                    "GameIndex": safe_int(game_index + 1),
                     "GameWinner": "2" if game_winner == "Draw" else "0" if game_winner == "Left" else "1",
-                    "GameTimestamp": game_timestamp,
-                    "RoundIndex": str(round_index),
+                    "GameTimestamp": safe_str(game_timestamp),
+                    "RoundIndex": safe_int(round_index),
                     "RoundWinner": "2" if round_winner == "Draw" else "0" if round_winner == "Left" else "1",
-                    "RoundTimestamp": round_timestamp,
-                    "StartedAt": str(event_log.get("StartedAt", "")),
-                    "UpdatedAt": str(event_log.get("UpdatedAt", "")),
+                    "RoundTimestamp": safe_str(round_timestamp),
+                    "StartedAt": safe_float(event_log.get("StartedAt")),
+                    "UpdatedAt": safe_float(event_log.get("UpdatedAt")),
                     "Actor": "0" if event_log.get("Actor") == "Left" else "1",
                 }
 
                 target = event_log.get("Target", "")
                 row["Target"] = "" if target == "" else "0" if target == "Left" else "1"
-                row["Category"] = str(event_log.get("Category", ""))
-                row["State"] = str(event_log.get("State", ""))
+                row["Category"] = safe_str(event_log.get("Category"))
+                row["State"] = safe_str(event_log.get("State"))
 
                 act = event_log.get("Data")
                 if act:
-                    row["Name"] = str(act.get("Name", ""))
-                    row["Duration"] = str(act.get("Duration", ""))
-                    row["Reason"] = "" if str(act.get("Reason", "")) == "None" else str(act.get("Reason", ""))
+                    row["Name"] = safe_str(act.get("Name"))
+                    row["Duration"] = safe_float(act.get("Duration"))
+                    reason = act.get("Reason")
+                    row["Reason"] = "" if reason is None or str(reason) == "None" else safe_str(reason)
 
                     robot = act.get("Robot")
                     if robot:
                         pos = robot.get("Position", {})
                         row.update({
-                            "BotPosX": str(pos.get("X", "")),
-                            "BotPosY": str(pos.get("Y", "")),
-                            "BotLinv": str(robot.get("LinearVelocity", "")),
-                            "BotAngv": str(robot.get("AngularVelocity", "")),
-                            "BotRot": str(robot.get("Rotation", "")),
-                            "BotIsDashActive": "1" if robot.get("IsDashActive") else "0",
-                            "BotIsSkillActive": "1" if robot.get("IsSkillActive") else "0",
-                            "BotIsOutFromArena": "1" if robot.get("IsOutFromArena") else "0",
+                            "BotPosX": safe_float(pos.get("X")),
+                            "BotPosY": safe_float(pos.get("Y")),
+                            "BotLinv": safe_float(robot.get("LinearVelocity")),
+                            "BotAngv": safe_float(robot.get("AngularVelocity")),
+                            "BotRot": safe_float(robot.get("Rotation")),
+                            "BotIsDashActive": safe_bool(robot.get("IsDashActive")),
+                            "BotIsSkillActive": safe_bool(robot.get("IsSkillActive")),
+                            "BotIsOutFromArena": safe_bool(robot.get("IsOutFromArena")),
                         })
 
                     enemy = act.get("EnemyRobot")
                     if enemy:
                         pos = enemy.get("Position", {})
                         row.update({
-                            "EnemyBotPosX": str(pos.get("X", "")),
-                            "EnemyBotPosY": str(pos.get("Y", "")),
-                            "EnemyBotLinv": str(enemy.get("LinearVelocity", "")),
-                            "EnemyBotAngv": str(enemy.get("AngularVelocity", "")),
-                            "EnemyBotRot": str(enemy.get("Rotation", "")),
-                            "EnemyBotIsDashActive": "1" if enemy.get("IsDashActive") else "0",
-                            "EnemyBotIsSkillActive": "1" if enemy.get("IsSkillActive") else "0",
-                            "EnemyBotIsOutFromArena": "1" if enemy.get("IsOutFromArena") else "0",
+                            "EnemyBotPosX": safe_float(pos.get("X")),
+                            "EnemyBotPosY": safe_float(pos.get("Y")),
+                            "EnemyBotLinv": safe_float(enemy.get("LinearVelocity")),
+                            "EnemyBotAngv": safe_float(enemy.get("AngularVelocity")),
+                            "EnemyBotRot": safe_float(enemy.get("Rotation")),
+                            "EnemyBotIsDashActive": safe_bool(enemy.get("IsDashActive")),
+                            "EnemyBotIsSkillActive": safe_bool(enemy.get("IsSkillActive")),
+                            "EnemyBotIsOutFromArena": safe_bool(enemy.get("IsOutFromArena")),
                         })
 
                 if event_log.get("Category") == "Collision":
                     col_data = event_log.get("Data", {})
-                    row["ColActor"] = str(col_data.get("IsActor", ""))
-                    row["ColImpact"] = str(col_data.get("Impact", ""))
-                    row["ColTieBreaker"] = str(col_data.get("IsTieBreaker", ""))
-                    row["ColLockDuration"] = str(col_data.get("LockDuration", ""))
+                    row["ColActor"] = safe_bool(col_data.get("IsActor"))
+                    row["ColImpact"] = safe_float(col_data.get("Impact"))
+                    row["ColTieBreaker"] = safe_bool(col_data.get("IsTieBreaker"))
+                    row["ColLockDuration"] = safe_float(col_data.get("LockDuration"))
 
                     col_robot = col_data.get("Robot")
                     if col_robot:
                         pos = col_robot.get("Position", {})
                         row.update({
-                            "ColBotPosX": str(pos.get("X", "")),
-                            "ColBotPosY": str(pos.get("Y", "")),
-                            "ColBotLinv": str(col_robot.get("LinearVelocity", "")),
-                            "ColBotAngv": str(col_robot.get("AngularVelocity", "")),
-                            "ColBotRot": str(col_robot.get("Rotation", "")),
-                            "ColBotIsDashActive": "1" if col_robot.get("IsDashActive") else "0",
-                            "ColBotIsSkillActive": "1" if col_robot.get("IsSkillActive") else "0",
-                            "ColBotIsOutFromArena": "1" if col_robot.get("IsOutFromArena") else "0",
+                            "ColBotPosX": safe_float(pos.get("X")),
+                            "ColBotPosY": safe_float(pos.get("Y")),
+                            "ColBotLinv": safe_float(col_robot.get("LinearVelocity")),
+                            "ColBotAngv": safe_float(col_robot.get("AngularVelocity")),
+                            "ColBotRot": safe_float(col_robot.get("Rotation")),
+                            "ColBotIsDashActive": safe_bool(col_robot.get("IsDashActive")),
+                            "ColBotIsSkillActive": safe_bool(col_robot.get("IsSkillActive")),
+                            "ColBotIsOutFromArena": safe_bool(col_robot.get("IsOutFromArena")),
                         })
 
                     col_enemy = col_data.get("EnemyRobot")
                     if col_enemy:
                         pos = col_enemy.get("Position", {})
                         row.update({
-                            "ColEnemyBotPosX": str(pos.get("X", "")),
-                            "ColEnemyBotPosY": str(pos.get("Y", "")),
-                            "ColEnemyBotLinv": str(col_enemy.get("LinearVelocity", "")),
-                            "ColEnemyBotAngv": str(col_enemy.get("AngularVelocity", "")),
-                            "ColEnemyBotRot": str(col_enemy.get("Rotation", "")),
-                            "ColEnemyBotIsDashActive": "1" if col_enemy.get("IsDashActive") else "0",
-                            "ColEnemyBotIsSkillActive": "1" if col_enemy.get("IsSkillActive") else "0",
-                            "ColEnemyBotIsOutFromArena": "1" if col_enemy.get("IsOutFromArena") else "0",
+                            "ColEnemyBotPosX": safe_float(pos.get("X")),
+                            "ColEnemyBotPosY": safe_float(pos.get("Y")),
+                            "ColEnemyBotLinv": safe_float(col_enemy.get("LinearVelocity")),
+                            "ColEnemyBotAngv": safe_float(col_enemy.get("AngularVelocity")),
+                            "ColEnemyBotRot": safe_float(col_enemy.get("Rotation")),
+                            "ColEnemyBotIsDashActive": safe_bool(col_enemy.get("IsDashActive")),
+                            "ColEnemyBotIsSkillActive": safe_bool(col_enemy.get("IsSkillActive")),
+                            "ColEnemyBotIsOutFromArena": safe_bool(col_enemy.get("IsOutFromArena")),
                         })
 
                 csv_rows.append(row)
