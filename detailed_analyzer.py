@@ -19,16 +19,16 @@ except Exception:
     print("✅ Using CPU")
 
 
-def collect_with_gpu(lf):
-    """Helper to collect LazyFrame with GPU if available, otherwise uses CPU"""
+def collect_with_gpu(lf, streaming=True):
+    """Helper to collect LazyFrame with GPU if available, otherwise uses CPU with streaming"""
     if GPU_AVAILABLE:
         try:
-            return lf.collect(engine="gpu")
+            return lf.collect(engine="gpu", streaming=streaming)
         except Exception:
             # Fallback to CPU if GPU collection fails
-            return lf.collect()
+            return lf.collect(streaming=streaming)
     else:
-        return lf.collect()
+        return lf.collect(streaming=streaming)
 
 # =====================
 # Config
@@ -42,7 +42,7 @@ tile_size = 0.7   # Larger = bigger heatmap tiles (lower resolution)
 
 def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
     """
-    Load CSV data using Polars with GPU acceleration
+    Load CSV data using Polars with GPU acceleration and streaming
 
     Args:
         csv_path: Path to CSV file
@@ -51,17 +51,31 @@ def load_data_chunked(csv_path, chunksize=50000, actor_filter=None):
     """
     # Scan CSV without schema enforcement - let Polars infer naturally
     # Use ignore_errors to handle inconsistent column types across files
-    lf = pl.scan_csv(csv_path, ignore_errors=True)
+    # rechunk=False reduces memory overhead by avoiding unnecessary rechunking
+    lf = pl.scan_csv(csv_path, ignore_errors=True, rechunk=False)
+
+    # Select ONLY required columns to drastically reduce memory usage
+    # This is critical for 135GB files - we only load what we need
+    lf = lf.select([
+        "GameIndex",     # For grouping by game
+        "UpdatedAt",     # For time-based analysis
+        "Actor",         # For filtering by bot
+        "BotPosX",       # X position
+        "BotPosY",       # Y position
+        "BotRot"         # Rotation (used for null checking)
+    ])
 
     # Filter by actor if specified, casting Actor inline for comparison
+    # IMPORTANT: Do this BEFORE collect to reduce memory usage
     if actor_filter is not None:
         lf = lf.filter(pl.col("Actor").cast(pl.Int64) == actor_filter)
 
-    # Drop invalid entries
+    # Drop invalid entries BEFORE collecting to reduce memory footprint
     lf = lf.drop_nulls(subset=["BotPosX", "BotPosY", "BotRot"])
 
-    # Collect with GPU acceleration
-    df = collect_with_gpu(lf)
+    # Collect with GPU acceleration and streaming enabled
+    # streaming=True processes data in batches to avoid OOM
+    df = collect_with_gpu(lf, streaming=True)
 
     return df
 
