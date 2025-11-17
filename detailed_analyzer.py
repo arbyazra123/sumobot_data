@@ -1,3 +1,4 @@
+import time
 import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
@@ -1912,6 +1913,7 @@ Examples:
         )
 
     elif args.command == "all":
+        start = time.time()
         # Validate that only one grouping mode is selected
         if args.use_timer and args.use_time_windows:
             print("❌ Error: Cannot use both --use-timer and --use-time-windows at the same time")
@@ -1976,6 +1978,12 @@ Examples:
         if args.use_timer:
             print(f"  - Distance over time plots")
         print("=" * 60)
+        
+        elapsed_seconds = time.time() - start
+        hours, remainder = divmod(elapsed_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        processing_time = f"{int(hours):02d}:{int(minutes):02d}:{seconds:.2f}"
+        print(f"\nProcessing Time: {processing_time}")
 
     elif args.command == "distance":
         create_distance_distributions_all_matchups(

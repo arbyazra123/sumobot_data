@@ -5,6 +5,7 @@ Aggregation logic from generator_duckdb_polars.py
 Batch processing pattern from generator.py
 """
 
+import time
 import os
 import re
 import glob
@@ -854,6 +855,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         command = sys.argv[1]
 
+        start = time.time()
+        is_valid_process = True
         if command == "batch":
             # Batch processing mode - only game metrics
             batch_process_csvs(base_dir, batch_size=batch_size, compute_timebins=False)
@@ -870,8 +873,8 @@ if __name__ == "__main__":
         elif command == "generate_timebins":
             # Generate timebin summaries from timebin batches
             generate_timebins_from_batches()
-
         else:
+            is_valid_process = False
             print("Unknown command:", command)
             print()
             print("Usage:")
@@ -879,6 +882,15 @@ if __name__ == "__main__":
             print("  python generator_polars_gpu.py batch_with_timebins")
             print("  python generator_polars_gpu.py generate")
             print("  python generator_polars_gpu.py generate_timebins")
+
+        if not is_valid_process:
+            exit()
+        elapsed_seconds = time.time() - start
+        hours, remainder = divmod(elapsed_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        processing_time = f"{int(hours):02d}:{int(minutes):02d}:{seconds:.2f}"
+        print(f"\nProcessing Time: {processing_time}")
+
     else:
         print("Usage:")
         print("  python generator_polars_gpu.py batch                  # Process game metrics only")
