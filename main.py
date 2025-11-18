@@ -22,6 +22,67 @@ def load_summary_data():
     df_collision_timebins = pd.read_csv("summary_collision_timebins.csv")
     return df_sum, df, df_timebins, df_collision_timebins
 
+def load_arena_data(dfsum):
+    # Check if arena_heatmap directory exists
+    heatmap_dir = "analysis_output/arena_heatmaps"
+
+    if os.path.exists(heatmap_dir):
+        # Get all bot directories
+        bot_dirs = [d for d in os.listdir(heatmap_dir)
+                   if os.path.isdir(os.path.join(heatmap_dir, d))]
+
+        # Sort bot directories by rank from dfsum
+        if "Rank" in dfsum.columns and "Bot" in dfsum.columns:
+            rank_map = dfsum.groupby("Bot")["Rank"].first().to_dict()
+            bot_dirs = sorted(bot_dirs, key=lambda b: rank_map.get(b, 9999))
+        else:
+            # Fallback to alphabetical sorting if rank columns not found
+            bot_dirs = sorted(bot_dirs)
+
+        if bot_dirs:
+            phase_names = ["window_0-15s.png", "window_15-30s.png", "window_30-45s.png","window_45-60s.png"]
+
+            # Display heatmaps for each bot
+            for bot_name in bot_dirs:
+                toc.h3(f"{bot_name} (#{bot_dirs.index(bot_name)+1})")
+                bot_dir = os.path.join(heatmap_dir, bot_name)
+
+                # Create n columns for the n phases
+                cols = st.columns(len(phase_names))
+
+                for col, phase_name in zip(cols, phase_names):
+                    image_path = os.path.join(bot_dir, f"{phase_name}")
+
+                    with col:
+                        st.markdown(f"**{phase_name}**")
+                        if os.path.exists(image_path):
+                            image = Image.open(image_path)
+                            st.image(image, use_container_width=True)
+                        else:
+                            st.warning(f"Image not found: {phase_name}")
+
+                # Display position distribution
+                dist_path = os.path.join(bot_dir, "position_distribution.png")
+                if os.path.exists(dist_path):
+                    st.markdown("**Position Distribution (X & Y Overlayed)**")
+                    dist_image = Image.open(dist_path)
+                    st.image(dist_image, use_container_width=True)
+
+                # Display distance distribution
+                dist_path = os.path.join(bot_dir, "distance_distribution.png")
+                if os.path.exists(dist_path):
+                    st.markdown("**Distance Distribution**")
+                    dist_image = Image.open(dist_path)
+                    st.image(dist_image, use_container_width=True)
+
+                st.divider()
+        else:
+            st.warning("No bot heatmaps found in directory")
+            st.info("Run: `python detailed_analyzer.py all` to generate heatmaps")
+    else:
+        st.warning(f"Heatmap directory not found: {heatmap_dir}")
+        st.info("Run: `python detailed_analyzer.py all` to generate heatmaps for all bots")
+
 if __name__ == "__main__":
     toc = stoc()
 
@@ -68,60 +129,7 @@ if __name__ == "__main__":
     # Arena Heatmaps
     toc.h2("Arena Heatmaps - Bot Movement Analysis")
     st.markdown("Visualize bot movement patterns across different game phases (Early, Mid, Late)")
-
-    # Check if arena_heatmap directory exists
-    heatmap_dir = "analysis_output/arena_heatmaps"
-
-    if os.path.exists(heatmap_dir):
-        # Get all bot directories
-        bot_dirs = sorted([d for d in os.listdir(heatmap_dir)
-                          if os.path.isdir(os.path.join(heatmap_dir, d))])
-
-        if bot_dirs:
-            phase_names = ["window_0-15s.png", "window_15-30s.png", "window_30-45s.png","window_45-60s.png"]
-
-            # Display heatmaps for each bot
-            for bot_name in bot_dirs:
-                toc.h3(f"{bot_name}")
-                bot_dir = os.path.join(heatmap_dir, bot_name)
-
-                # Create n columns for the n phases
-                cols = st.columns(len(phase_names))
-
-                for idx, (col, phase_name) in enumerate(zip(cols, phase_names)):
-                    image_path = os.path.join(bot_dir, f"{phase_name}")
-
-                    with col:
-                        st.markdown(f"**{phase_name}**")
-                        if os.path.exists(image_path):
-                            image = Image.open(image_path)
-                            st.image(image, use_container_width=True)
-                        else:
-                            st.warning(f"Image not found: {phase_name}")
-
-                # Display position distribution
-                dist_path = os.path.join(bot_dir, "position_distribution.png")
-                if os.path.exists(dist_path):
-                    st.markdown("**Position Distribution (X & Y Overlayed)**")
-                    dist_image = Image.open(dist_path)
-                    st.image(dist_image, use_container_width=True)
-
-                st.divider()
-
-                # Display distance distribution
-                dist_path = os.path.join(bot_dir, "distance_distribution.png")
-                if os.path.exists(dist_path):
-                    st.markdown("**Distance Distribution")
-                    dist_image = Image.open(dist_path)
-                    st.image(dist_image, use_container_width=True)
-
-                st.divider()
-        else:
-            st.warning("No bot heatmaps found in directory")
-            st.info("Run: `python detailed_analyzer.py all` to generate heatmaps")
-    else:
-        st.warning(f"Heatmap directory not found: {heatmap_dir}")
-        st.info("Run: `python detailed_analyzer.py all` to generate heatmaps for all bots")
+    load_arena_data(df_sum)
 
     toc.toc()
 

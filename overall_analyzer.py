@@ -8,6 +8,89 @@ from reportlab.lib.pagesizes import A4
 import plotly.io as pio
 import streamlit as st
 
+# =====================
+# Bot Marker Configuration
+# =====================
+# Map bot names to matplotlib marker shapes for easy visual differentiation
+BOT_MARKER_MAP = {
+    "Bot_BT": "o",           # Circle
+    "Bot_NN": "s",           # Square
+    "Bot_Primitive": "^",    # Triangle up
+    "Bot_MCTS": "D",         # Diamond
+    "Bot_RL": "v",           # Triangle down
+    "Bot_Hybrid": "P",       # Plus (filled)
+    "Bot_Random": "*",       # Star
+    "Bot_Aggressive": "X",   # X
+    "Bot_Defensive": "p",    # Pentagon
+    "Bot_Custom": "h",       # Hexagon
+}
+
+# Default marker if bot not in map
+DEFAULT_MARKER = "o"
+
+
+def get_bot_marker(bot_name):
+    """
+    Get marker shape for a given bot name.
+
+    Args:
+        bot_name: Name of the bot
+
+    Returns:
+        Matplotlib marker string
+    """
+    return BOT_MARKER_MAP.get(bot_name, DEFAULT_MARKER)
+
+
+def plot_with_bot_markers(ax, data, x, y, hue, hue_order=None, **kwargs):
+    """
+    Plot line plot with bot-specific markers.
+
+    Args:
+        ax: Matplotlib axes object
+        data: pandas DataFrame with plot data
+        x: Column name for x-axis
+        y: Column name for y-axis
+        hue: Column name for grouping (bot names or bot names with rank)
+        hue_order: List specifying order of hue values (optional)
+        **kwargs: Additional plot keywords (linewidth, alpha, etc.)
+
+    Example:
+        >>> fig, ax = plt.subplots()
+        >>> plot_with_bot_markers(ax, data=df, x="Timer", y="WinRate",
+        ...                       hue="BotWithRank", hue_order=bot_order)
+    """
+    # Default plot settings
+    plot_kwargs = {'linewidth': 2, 'markersize': 8}
+    plot_kwargs.update(kwargs)
+
+    # Determine which bots to plot
+    bots_to_plot = hue_order if hue_order else data[hue].unique()
+
+    for bot_label in bots_to_plot:
+        bot_data = data[data[hue] == bot_label]
+        if bot_data.empty:
+            continue
+
+        # Extract original bot name (before " (#rank)" if present)
+        bot_name = bot_label.split(" (")[0] if " (" in str(bot_label) else str(bot_label)
+        marker = get_bot_marker(bot_name)
+
+        ax.plot(bot_data[x], bot_data[y], marker=marker, label=bot_label, **plot_kwargs)
+
+
+def update_bot_marker_map(new_mappings):
+    """
+    Update the bot marker map with new mappings.
+
+    Args:
+        new_mappings: Dictionary of {bot_name: marker_shape}
+
+    Example:
+        >>> update_bot_marker_map({"Bot_NewBot": "H"})
+    """
+    BOT_MARKER_MAP.update(new_mappings)
+
 
 def get_bot_winrates(summary: pd.DataFrame, bot_name: str):
     """Return aggregated winrates for one bot against all others."""
@@ -116,7 +199,8 @@ def plot_time_related(summary, width=8, height=6):
         for bot in subset["Bot_L"].unique():
             bot_data = subset[subset["Bot_L"] == bot]
             label = bot_data["BotWithRank"].iloc[0]
-            ax.plot(bot_data["Timer"], bot_data["AvgDuration"], marker="o", label=label)
+            marker = get_bot_marker(bot)
+            ax.plot(bot_data["Timer"], bot_data["AvgDuration"], marker=marker, label=label, markersize=8)
 
         ax.set_title(f"Avg Match Duration vs Timer (ActInterval = {interval})")
         ax.set_xlabel("Timer (s)")
@@ -247,38 +331,6 @@ def plot_win_rate_stability_over_timer(summary, width=8, height=6):
     plt.ylabel("Bot")
     return fig
 
-@st.cache_data
-def plot_win_rate_with_actinterval(summary, width, height):
-    # Optional: make ActInterval numeric
-    summary["ActInterval"] = pd.to_numeric(summary["ActInterval"], errors='coerce')
-
-    # Plot: Win Rate vs ActInterval
-    fig, ax = plt.subplots(figsize=(width,height))
-    sns.lineplot(
-        data=summary,
-        x="ActInterval",
-        y="WinRate_L",
-        hue="Bot_L",
-        marker="o",
-        ax=ax
-    )
-
-    # Titles and labels
-    ax.set_title("Win Rate vs Action Interval (ActInterval) per Bot", fontsize=16)
-    ax.set_xlabel("Action Interval (ms)", fontsize=14)
-    ax.set_ylabel("Win Rate (Left Bot)", fontsize=14)
-    ax.set_ylim(0, 1)
-
-    unique_timers = sorted(summary["ActInterval"].unique())
-    plt.xticks(unique_timers, [f"{t}" for t in unique_timers])
-
-    # Optional: annotate each point with win rate
-    for line in ax.lines:
-        for x, y in zip(line.get_xdata(), line.get_ydata()):
-            ax.text(x, y + 0.02, f"{y:.2f}", ha='center', fontsize=9)
-
-    return fig
-
 def plot_timebins_intensity(
     df,
     group_by="Bot",
@@ -355,8 +407,8 @@ def plot_timebins_intensity(
         grouped = df_sel.groupby([group_by_plot, "TimeBin"], as_index=False)["MeanCount"].mean()
 
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y="MeanCount", hue=group_by_plot,
-                    hue_order=bot_order_with_rank, marker="o", ax=ax)
+        plot_with_bot_markers(ax, data=grouped, x="TimeBin", y="MeanCount",
+                            hue=group_by_plot, hue_order=bot_order_with_rank)
         ax.set_title(f"Mean {action_name} over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count")
@@ -370,8 +422,8 @@ def plot_timebins_intensity(
     elif mode == "total":
         grouped = df.groupby([group_by_plot, "TimeBin"], as_index=False)["MeanCount"].mean()
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y="MeanCount", hue=group_by_plot,
-                    hue_order=bot_order_with_rank, marker="o", ax=ax)
+        plot_with_bot_markers(ax, data=grouped, x="TimeBin", y="MeanCount",
+                            hue=group_by_plot, hue_order=bot_order_with_rank)
         ax.set_title("Total action intensity over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count (summed over actions)")
@@ -402,13 +454,15 @@ def plot_timebins_intensity(
             if sub.empty:
                 ax.set_visible(False)
                 continue
-            sns.lineplot(data=sub, x="TimeBin", y="MeanCount", hue=group_by_plot,
-                        hue_order=bot_order_with_rank, marker="o", ax=ax, legend=(i==0))
+            plot_with_bot_markers(ax, data=sub, x="TimeBin", y="MeanCount",
+                                hue=group_by_plot, hue_order=bot_order_with_rank)
 
-            # Capture legend handles from first plot, then remove it
+            # Capture legend handles from first plot
             if i == 0:
                 handles, labels = ax.get_legend_handles_labels()
-                ax.get_legend().remove()
+                legend = ax.get_legend()
+                if legend is not None:
+                    legend.remove()
 
             ax.set_title(action)
             ax.set_xlabel("Time (s)")
@@ -435,339 +489,6 @@ def plot_timebins_intensity(
     else:
         raise ValueError("mode must be one of ['total','per_action','select']")
 
-
-def ablation_summary(df, metric="WinRate", ignore_params=None, group_by=None):
-    """
-    Perform an 'ablation-style' aggregation by ignoring one or more configuration parameters.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The summary dataframe (e.g. matchup_summary or bot_summary).
-    metric : str
-        The target metric to average, e.g. "WinRate_L", "WinRate_R", "TotalActions", etc.
-    ignore_params : list[str]
-        List of column names to *ignore* (aggregate over).
-        Example: ["Timer"] means you don't care about timer differences.
-    group_by : list[str] or None
-        Columns to group by (other than ignored ones). 
-        If None, automatically uses all config columns minus ignored ones.
-
-    Returns
-    -------
-    pd.DataFrame
-        Aggregated DataFrame averaged over the ignored parameters.
-    """
-    if ignore_params is None:
-        ignore_params = []
-
-    # Detect configuration columns
-    config_cols = ["Bot_L", "Bot_R", "Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
-
-    # Build group-by columns: remove ignored ones
-    if group_by is None:
-        group_by = [c for c in config_cols if c not in ignore_params]
-
-    # Perform aggregation
-    agg_df = (
-        df.groupby(group_by, dropna=False)[metric]
-        .mean()
-        .reset_index()
-        .sort_values(metric, ascending=False)
-    )
-
-    agg_df["IgnoredParams"] = ", ".join(ignore_params) if ignore_params else "(none)"
-    return agg_df
-
-def plot_ablation_compare(df, metric="WinRate_L", ignore_param="Timer", x="SkillLeft", hue="SkillRight"):
-    """
-    Plot comparison of WinRate with and without a specified parameter (e.g. Timer).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Your summary DataFrame (e.g. matchup_summary or bot_summary)
-    metric : str
-        Metric to compare, default "WinRate_L"
-    ignore_param : str
-        Parameter to ablate (ignore)
-    x : str
-        Column for x-axis (e.g. "SkillLeft")
-    hue : str
-        Column for hue grouping (e.g. "SkillRight")
-
-    Returns
-    -------
-    matplotlib.figure.Figure
-    """
-    # --- Normal grouping (with Timer) ---
-    df_with = df.groupby([x, hue, ignore_param])[metric].mean().reset_index()
-    df_with["Type"] = f"With {ignore_param}"
-
-    # --- Ablated grouping (ignore Timer) ---
-    df_without = df.groupby([x, hue])[metric].mean().reset_index()
-    df_without["Type"] = f"Without {ignore_param}"
-    df_without[ignore_param] = "ALL"  # placeholder for visualization
-
-    # --- Combine ---
-    df_compare = pd.concat([df_with, df_without], ignore_index=True)
-
-    # --- Plot ---
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(
-        data=df_compare,
-        x=x,
-        y=metric,
-        hue="Type",
-        errorbar=None,
-        ax=ax
-    )
-
-    ax.set_title(f"{metric} Comparison: With vs Without {ignore_param}")
-    ax.set_xlabel(x)
-    ax.set_ylabel(f"Mean {metric}")
-    ax.legend(title="Condition", loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
-    plt.tight_layout()
-    return fig
-
-def plot_ablation_winrate(df, bot_col="Bot_L", ignore_param="Timer", winrate_col="WinRate_L"):
-    """
-    Creates a bar chart comparing win rates with vs ignoring a parameter.
-    Returns a matplotlib figure for use in Streamlit (st.pyplot).
-
-    Parameters:
-        df (pd.DataFrame): The summary_matchup dataframe
-        bot_col (str): Column name for the bot
-        opponent_col (str): Column name for opponent
-        ignore_param (str): Parameter to ignore for ablation
-        winrate_col (str): Column for winrate ('WinRate_L' or 'WinRate_R')
-
-    Returns:
-        matplotlib.figure.Figure
-    """
-
-    # --- With the parameter included ---
-    df_with = df.copy()
-    df_with["Label"] = "With " + ignore_param
-
-    # --- Ignoring the parameter (ablation) ---
-    group_cols = [c for c in df.columns if c not in [ignore_param, "Winner_L", "Winner_R", "Games", "WinRate_L", "WinRate_R", "Rank_L", "Rank_R"]]
-    df_ignore = df.groupby(group_cols, as_index=False).agg({
-        "Games": "sum",
-        "Winner_L": "sum",
-        "Winner_R": "sum"
-    })
-
-    df_ignore["WinRate_L"] = df_ignore["Winner_L"] / df_ignore["Games"]
-    df_ignore["WinRate_R"] = df_ignore["Winner_R"] / df_ignore["Games"]
-    df_ignore["Label"] = "Ignore " + ignore_param
-
-    # --- Combine for plotting ---
-    df_plot = pd.concat([df_with[group_cols + [winrate_col, "Label"]],
-                         df_ignore[group_cols + [winrate_col, "Label"]]],
-                        ignore_index=True)
-
-    # --- Plot ---
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(data=df_plot, x=bot_col, y=winrate_col, hue="Label", ax=ax)
-    ax.set_title(f"Ablation: WinRate with vs ignoring {ignore_param}")
-    ax.set_ylabel("Win Rate")
-    ax.set_ylim(0, 1)
-    ax.legend(title="", loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
-    plt.tight_layout()
-
-    return fig
-
-
-def plot_surface_interaction(
-    summary: pd.DataFrame,
-    key: str = "WinRate_L",
-    bot_col: str = "Bot_L",
-    x_col: str = "Timer",
-    y_col: str = "ActInterval",
-    bot_name: str | None = None,
-    kind: str = "heatmap",  # or "surface"
-    width: int = 8,
-    height: int = 6,
-    ax=None,
-):
-    """
-    Cross analysis plot: visualize relationship between (x_col × y_col) vs a metric (key).
-    Compatible with Streamlit (returns Figure).
-    """
-
-    df = summary.copy()
-
-    # --- Filter bot if specified ---
-    if bot_name is not None:
-        df = df[df[bot_col] == bot_name]
-        title_bot = bot_name
-    else:
-        title_bot = "All Bots (avg)"
-        
-    
-    # --- Create pivot table ---
-    pivot = df.pivot_table(index=y_col, columns=x_col, values=key, aggfunc="mean")
-
-    if pivot.empty:
-        print("⚠️ No data available for this combination.")
-        return None
-
-    # --- Create figure object ---
-    fig = plt.figure(figsize=(width, height))
-
-    
-    if ax is None:
-        ax = fig.add_subplot(111)
-    sns.heatmap(pivot, annot=True, cmap="Blues", fmt=".2f", ax=ax)
-    label = key.replace("_L","")
-    ax.set_title(f"{label} Heatmap ({title_bot})")
-    ax.set_xlabel(x_col)
-    ax.set_ylabel(y_col)
-
-    fig.tight_layout()
-    return fig
-
-def plot_bot_winrate_by_config(
-    summary: pd.DataFrame,
-    key: str = "WinRate_L",
-    bot_col: str = "Bot_L",
-    config_col: str = "Timer",
-    width: int = 8,
-    height: int = 6,
-    kind: str = "line",  # "bar" or "line"
-):
-    """
-    Plot average WinRate (or other metric) per Bot across a given configuration column.
-    Adds rank info (from rank_col) to legend labels.
-    """
-
-    # --- Compute average per bot and config ---
-    grouped = summary.groupby([bot_col, config_col])[key].mean().reset_index()
-
-    # --- Get bot rank mapping ---
-    rank_map = (
-        summary.groupby(bot_col)["Rank_L"]
-        .mean()
-        .sort_values()
-        .round(0)
-        .astype(int)
-        .to_dict()
-    )
-
-    # --- Rename bot labels with rank ---
-    grouped["BotWithRank"] = grouped[bot_col].map(
-        lambda b: f"{b} (#{rank_map.get(b, '?')})"
-    )
-
-    # --- Create figure ---
-    fig, ax = plt.subplots(figsize=(width, height))
-
-    # --- Plot ---
-    if kind == "bar":
-        sns.barplot(
-            data=grouped,
-            x=config_col,
-            y=key,
-            hue="BotWithRank",
-            ax=ax,
-            errorbar=None,
-        )
-    else:
-        sns.lineplot(
-            data=grouped,
-            x=config_col,
-            y=key,
-            hue="BotWithRank",
-            marker="o",
-            linewidth=2,
-            ax=ax,
-        )
-
-    # --- Fix x-axis for numeric config_col ---
-    unique_vals = sorted(grouped[config_col].unique())
-    if pd.api.types.is_numeric_dtype(grouped[config_col]):
-        ax.set_xticks(unique_vals)
-        ax.set_xticklabels([str(v) for v in unique_vals])
-
-    # --- Style ---
-    label = key.replace("_L", "")
-    ax.set_title(f"{label} vs {config_col} (Avg per Bot)")
-    ax.set_xlabel(config_col)
-    ax.set_ylabel(label)
-    ax.grid(axis="y", linestyle="--", alpha=0.4)
-    ax.legend(title="Bot (Rank)", loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
-
-    fig.tight_layout()
-    return fig
-
-def plot_multi_surface_interactions(df, bot_name, key="WinRate_L"):
-    pairs = [
-        ("Timer", "ActInterval"),
-        ("Timer", "Round"),
-        ("Timer", "SkillLeft"),
-        ("Timer", "SkillRight"),
-        ("ActInterval", "Round"),
-        ("ActInterval", "SkillLeft"),
-        ("ActInterval", "SkillRight"),
-        ("Round", "SkillLeft"),
-        ("Round", "SkillRight"),
-        ("SkillLeft", "SkillRight"),
-    ]
-    
-    fig, axes = plt.subplots(3, 4, figsize=(18, 12))
-    axes = axes.flatten()
-
-    for i, (x_col, y_col) in enumerate(pairs):
-        ax = axes[i]
-        plot_surface_interaction(df, bot_name=bot_name, key=key, x_col=x_col, y_col=y_col, ax=ax)
-        ax.set_title(f"{x_col} x {y_col}", fontsize=10)
-    
-    # Hide any extra subplots if pairs < grid size
-    for j in range(len(pairs), len(axes)):
-        fig.delaxes(axes[j])
-    
-    fig.suptitle(f"Cross Analysis Win Rate for {bot_name}", fontsize=14)
-    fig.tight_layout()
-    return fig
-
-def plot_cross_matrix(df, bot_name="Bot_NN", key="WinRate_L"):
-    cfg_cols = ["ActInterval", "Round", "SkillLeft", "SkillRight"]
-    
-    # Filter for this bot
-    df_bot = df[df["Bot_L"] == bot_name].copy()
-
-    # Melt configuration columns into a single axis
-    melted = df_bot.melt(
-        id_vars=["Timer", key],
-        value_vars=cfg_cols,
-        var_name="ConfigType",
-        value_name="ConfigValue"
-    )
-
-    # Compute mean win rate by Timer × ConfigType × ConfigValue
-    grouped = (
-        melted.groupby(["Timer", "ConfigType", "ConfigValue"])[key]
-        .mean()
-        .reset_index()
-    )
-
-    # Combine ConfigType + Value into a readable label
-    grouped["Config"] = grouped["ConfigType"] + "=" + grouped["ConfigValue"].astype(str)
-
-    # Pivot for heatmap
-    pivot = grouped.pivot(index="Config", columns="Timer", values=key)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, len(pivot) * 0.4 + 2))
-    sns.heatmap(pivot, annot=True, cmap="viridis", fmt=".2f", ax=ax)
-    
-    ax.set_title(f"Cross Analysis of Win Rate vs Timer for {bot_name}")
-    ax.set_xlabel("Timer")
-    ax.set_ylabel("Configuration (Type=Value)")
-
-    fig.tight_layout()
-    return fig
 
 def plot_full_cross_heatmap_half(df, bot_name="Bot_NN", key="WinRate_L", max_labels=40, lower_triangle=True):
     cfg_cols = ["Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
@@ -957,22 +678,30 @@ def plot_grouped_config_winrates(
             config_data = grouped[grouped[config_col] == config_val]
 
         means = []
-        stds = []
+        # stds = []
 
         for bot in bots:
             bot_data = config_data[config_data[bot_col] == bot]
             if not bot_data.empty:
                 means.append(bot_data['mean'].values[0])
-                std_val = bot_data['std'].values[0]
-                stds.append(std_val if not pd.isna(std_val) else 0)
+                # std_val = bot_data['std'].values[0]
+                # stds.append(std_val if not pd.isna(std_val) else 0)
             else:
                 means.append(0)
-                stds.append(0)
+                # stds.append(0)
 
         offset = (i - n_configs/2 + 0.5) * bar_width
-        ax.bar(x_positions + offset, means, bar_width,
-               label=str(config_val), color=config_colors[config_val],
-               yerr=stds, capsize=3, error_kw={'linewidth': 1.5, 'elinewidth': 1})
+        bars = ax.bar(x_positions + offset, means, bar_width,
+               label=str(config_val), color=config_colors[config_val],)
+            #    yerr=stds, capsize=3, error_kw={'linewidth': 1.5, 'elinewidth': 1})
+
+        # Add value labels inside bars
+        for bar, mean_val in zip(bars, means):
+            height = bar.get_height()
+            if height > 0:  # Only add label if bar has height
+                ax.text(bar.get_x() + bar.get_width()/2., height/2,
+                        f'{mean_val:.1f}',
+                        ha='center', va='center', fontsize=7, fontweight='bold', color='white')
 
     # Customize plot
     ax.set_xlabel('Bots', fontsize=12, fontweight='bold')
@@ -1000,7 +729,123 @@ def plot_grouped_config_winrates(
     return fig
 
 
-def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radial_limit="auto"):
+def plot_overall_bot_metrics(
+    df: pd.DataFrame,
+    bot_col: str = "Bot_L",
+    metric: str = "Collisions_L",
+    width: int = 10,
+    height: int = 6,
+    title: str = None,
+    ylabel: str = None,
+):
+    """
+    Create a simple bar chart showing mean metric values per bot across all configurations.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Summary dataframe (e.g., matchup_summary)
+    bot_col : str
+        Column name for bots (default: "Bot_L")
+    metric : str
+        Metric to plot. Options:
+        - "Collisions_L" or "Collisions_R": Total collisions
+        - "ActionCounts_L" or "ActionCounts_R": Total action counts
+        - "Duration_L" or "Duration_R": Action duration
+        - "MatchDur": Match duration
+        - "Games": Total games
+    width : int
+        Figure width
+    height : int
+        Figure height
+    title : str
+        Plot title (optional)
+    ylabel : str
+        Y-axis label (optional)
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+
+    Examples
+    --------
+    >>> plot_overall_bot_metrics(df, metric="Collisions_L", title="Mean Collisions per Bot")
+    >>> plot_overall_bot_metrics(df, metric="ActionCounts_L", title="Mean Actions per Bot")
+    >>> plot_overall_bot_metrics(df, metric="MatchDur", title="Mean Match Duration per Bot")
+    """
+
+    # Get unique bots and sort by rank
+    rank_col = "Rank_L" if bot_col == "Bot_L" else "Rank_R"
+    if rank_col in df.columns:
+        rank_map = df.groupby(bot_col)[rank_col].first().to_dict()
+        bots = sorted(df[bot_col].unique(), key=lambda b: rank_map.get(b, 9999))
+    else:
+        bots = sorted(df[bot_col].unique())
+        rank_map = {}
+
+    # Determine if we need to calculate per-game averages
+    per_game_metrics = ["Collisions", "ActionCounts", "Duration", "MatchDur"]
+    needs_per_game = any(m in metric for m in per_game_metrics)
+
+    if needs_per_game:
+        # Calculate per-game average
+        df_copy = df.copy()
+        df_copy['metric_per_game'] = df_copy[metric] / df_copy['Games']
+        grouped = df_copy.groupby(bot_col)['metric_per_game'].mean().reset_index()
+        grouped.columns = [bot_col, 'mean_value']
+    else:
+        # Direct mean for metrics like winrate
+        grouped = df.groupby(bot_col)[metric].mean().reset_index()
+        grouped.columns = [bot_col, 'mean_value']
+
+    # Create the bar chart
+    fig, ax = plt.subplots(figsize=(width, height))
+
+    # Prepare data for plotting
+    means = []
+    for bot in bots:
+        bot_data = grouped[grouped[bot_col] == bot]
+        if not bot_data.empty:
+            means.append(bot_data['mean_value'].values[0])
+        else:
+            means.append(0)
+
+    # Plot bars
+    x_positions = np.arange(len(bots))
+    bars = ax.bar(x_positions, means, width=0.6, color='#2ca02c', alpha=0.8, edgecolor='black', linewidth=1.2)
+
+    # Add value labels inside bars
+    for bar, mean_val in zip(bars, means):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height/2,
+                f'{mean_val:.1f}',
+                ha='center', va='center', fontsize=9, fontweight='bold', color='white')
+
+    # Customize plot
+    ax.set_xlabel('Bots', fontsize=12, fontweight='bold')
+    ax.set_ylabel(ylabel if ylabel else metric.replace('_', ' '), fontsize=12, fontweight='bold')
+
+    if title:
+        plot_title = title
+    else:
+        plot_title = f'Mean {metric.replace("_", " ")} per Bot (across all configurations)'
+
+    ax.set_title(plot_title, fontsize=14, fontweight='bold', pad=15)
+    ax.set_xticks(x_positions)
+
+    # Create bot labels with rank
+    if rank_map:
+        bot_labels = [f"{bot} (#{int(rank_map[bot])})" for bot in bots]
+    else:
+        bot_labels = bots
+    ax.set_xticklabels(bot_labels, rotation=30, ha='right')
+    ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_action_radar(df, bot_col="Bot_L", width=14, height=12, scale=None, radial_limit="auto"):
     """
     Create a radar chart showing mean action counts per bot.
 
@@ -1090,9 +935,10 @@ def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radia
             label = f"{bot} (#{int(rank_map[bot])})"
         else:
             label = bot
-        ax.plot(angles, values, 'o-', linewidth=2.5, markersize=8,
+        # Use bot-specific marker
+        marker = get_bot_marker(bot)
+        ax.plot(angles, values, f'{marker}-', linewidth=2.5, markersize=8,
                 label=label, color=colors[i % len(colors)])
-        ax.fill(angles, values, alpha=0.12, color=colors[i % len(colors)])
 
     # Set labels with better styling
     ax.set_xticks(angles[:-1])
@@ -1130,7 +976,7 @@ def plot_action_radar(df, bot_col="Bot_L", width=10, height=8, scale=None, radia
     return fig
 
 
-def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None):
+def plot_collision_radar(df, bot_col="Bot_L", width=14, height=12, scale=None):
     """
     Create a triangular radar chart showing collision outcomes per bot.
     Three axes: hit (wins), tie (draws), being_hit (losses)
@@ -1191,9 +1037,10 @@ def plot_collision_triangle(df, bot_col="Bot_L", width=10, height=8, scale=None)
             label = f"{bot} (#{int(rank_map[bot])})"
         else:
             label = bot
-        ax.plot(angles, values, 'o-', linewidth=2.5, markersize=8,
+        # Use bot-specific marker
+        marker = get_bot_marker(bot)
+        ax.plot(angles, values, f'{marker}-', linewidth=2.5, markersize=8,
                 label=label, color=colors[i % len(colors)])
-        ax.fill(angles, values, alpha=0.12, color=colors[i % len(colors)])
 
     # Set labels with better styling
     ax.set_xticks(angles[:-1])
@@ -1514,8 +1361,8 @@ def plot_collision_timebins_intensity(
         grouped = df.groupby([group_by_plot, "TimeBin"], as_index=False)[collision_type].mean()
 
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y=collision_type, hue=group_by_plot,
-                    hue_order=bot_order_with_rank, marker="o", ax=ax)
+        plot_with_bot_markers(ax, data=grouped, x="TimeBin", y=collision_type,
+                            hue=group_by_plot, hue_order=bot_order_with_rank)
         ax.set_title(f"Mean {collision_type} collisions over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count")
@@ -1532,8 +1379,8 @@ def plot_collision_timebins_intensity(
         grouped = df.groupby([group_by_plot, "TimeBin"], as_index=False)["TotalCollisions"].mean()
 
         fig, ax = plt.subplots(figsize=(width, height))
-        sns.lineplot(data=grouped, x="TimeBin", y="TotalCollisions", hue=group_by_plot,
-                    hue_order=bot_order_with_rank, marker="o", ax=ax)
+        plot_with_bot_markers(ax, data=grouped, x="TimeBin", y="TotalCollisions",
+                            hue=group_by_plot, hue_order=bot_order_with_rank)
         ax.set_title("Total collision intensity over time")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Mean Count (summed over collision types)")
@@ -1563,17 +1410,16 @@ def plot_collision_timebins_intensity(
                 ax.set_visible(False)
                 continue
 
-            # Use hue_order for consistent ordering
-            if group_by in ["Bot_L", "Bot_R"] and "Rank_L" in df.columns:
-                sns.lineplot(data=sub, x="TimeBin", y=ctype, hue=group_by_plot,
-                           hue_order=bot_order_with_rank, marker="o", ax=ax, legend=(i==0))
-            else:
-                sns.lineplot(data=sub, x="TimeBin", y=ctype, hue=group_by_plot, marker="o", ax=ax, legend=(i==0))
+            # Plot with bot markers
+            plot_with_bot_markers(ax, data=sub, x="TimeBin", y=ctype,
+                                hue=group_by_plot, hue_order=bot_order_with_rank)
 
             # Capture legend handles from first plot, then remove it
             if i == 0:
                 handles, labels = ax.get_legend_handles_labels()
-                ax.get_legend().remove()
+                legend = ax.get_legend()
+                if legend is not None:
+                    legend.remove()
 
             ax.set_title(ctype)
             ax.set_xlabel("Time (s)")
@@ -1613,13 +1459,25 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
     with col2:
         st.markdown("**Collision Behaviour**")
         st.markdown("Hit/Being hit/Tie distribution per bot")
-        st.pyplot(plot_collision_triangle(df))
+        st.pyplot(plot_collision_radar(df))
 
     # Win Rate Matrix
     toc.h3("Win Rate Matrix")
     st.markdown("Shows how often each bot wins against others across different matchups.")
     st.markdown("This is calculated with taking mean of each configuration (10-games iteration matchup) resulting 240 games in total")
     st.pyplot(plot_winrate_matrix(df,width, height))
+
+    toc.h3("Action Taken all configuration")
+    st.pyplot(plot_overall_bot_metrics(df, metric="ActionCounts_L", title="Mean Action per Bot"))
+
+    toc.h3("Action Duration all configuration")
+    st.pyplot(plot_overall_bot_metrics(df, metric="Duration_L", title="Mean Action Duration per Bot"))
+
+    toc.h3("Collision over all configuration")
+    st.pyplot(plot_overall_bot_metrics(df, metric="Collisions_L", title="Mean Collisions per Bot"))
+
+    toc.h3("Match Duration all configuration")
+    st.pyplot(plot_overall_bot_metrics(df, metric="MatchDur", title="Mean Match Duration per Bot"))
 
     toc.h3("Win Rate grouped by Timer")
     st.pyplot(plot_grouped_config_winrates(df, config_col="Timer"))
@@ -1644,6 +1502,18 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
 
     toc.h3("Collision grouped by Skill")
     st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Skill"))
+
+    toc.h3("Action Taken grouped by Timer")
+    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Timer"))
+
+    toc.h3("Action Taken grouped by ActInterval")
+    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="ActInterval"))
+
+    toc.h3("Action Taken grouped by Round")
+    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Round"))
+
+    toc.h3("Action Taken grouped by Skill")
+    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Skill"))
 
     toc.h3("Action Duration grouped by Timer")
     st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Timer"))
@@ -1678,9 +1548,8 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
     # toc.h3("Win Rate over Action Interval Configuration")
     # st.pyplot(plot_bot_winrate_by_config(df,config_col="ActInterval"))
 
-    toc.h3("Full Configuration Cross Analysis")
-    st.pyplot(plot_full_cross_heatmap_half(df, bot_name="Bot_NN", lower_triangle=True))
-
+    # toc.h3("Full Configuration Cross Analysis")
+    # st.pyplot(plot_full_cross_heatmap_half(df, bot_name="Bot_NN", lower_triangle=True))
 
     # toc.h3("Win Rate over SkillLeft Configuration")
     # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
