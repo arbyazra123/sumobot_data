@@ -1622,7 +1622,7 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
             if add_per_bot_regression:
                 bot_x = plot_data[mask][x_col].values
                 bot_y = plot_data[mask][y_col].values
-                if len(bot_x) > 1:  # Need at least 2 points for regression
+                if len(bot_x) > 1 and bot_x.std() > 0:  # Need at least 2 points and variance for regression
                     bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                     bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                     bot_y_line = bot_slope * bot_x_line + bot_intercept
@@ -1853,7 +1853,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
             # Per-bot regression line
             bot_x = plot_data[mask][action].values
             bot_y = plot_data[mask]['WinRate'].values
-            if len(bot_x) > 1:  # Need at least 2 points for regression
+            if len(bot_x) > 1 and bot_x.std() > 0:  # Need at least 2 points and variance for regression
                 bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                 bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                 bot_y_line = bot_slope * bot_x_line + bot_intercept
@@ -1937,7 +1937,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
             # Per-bot regression line
             bot_x = plot_data[mask][action].values
             bot_y = plot_data[mask]['WinRate'].values
-            if len(bot_x) > 1:  # Need at least 2 points for regression
+            if len(bot_x) > 1 and bot_x.std() > 0:  # Need at least 2 points and variance for regression
                 bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                 bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                 bot_y_line = bot_slope * bot_x_line + bot_intercept
