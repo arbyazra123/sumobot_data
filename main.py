@@ -40,7 +40,7 @@ def load_arena_data(dfsum):
             bot_dirs = sorted(bot_dirs)
 
         if bot_dirs:
-            phase_names = ["window_0-15s.png", "window_15-30s.png", "window_30-45s.png","window_45-60s.png"]
+            phase_names = ["window_2.5-15s.png", "window_15-30s.png", "window_30-45s.png","window_45-60s.png"]
 
             # Display heatmaps for each bot
             for bot_name in bot_dirs:
