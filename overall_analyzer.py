@@ -1708,67 +1708,67 @@ def plot_all_correlations(df, width=10, height=8):
             figs['skilltype'] = fig
 
     # e. Winrate vs TotalSkillAct - Separated by configurations
-    skill_figs = {}
+    # skill_figs = {}
 
     # By ActInterval
-    for interval in sorted(data['ActInterval'].unique()):
-        interval_data = data[data['ActInterval'] == interval]
-        fig = plot_correlation_scatter(
-            interval_data,
-            x_col='TotalSkillAct',
-            y_col='WinRate',
-            title=f'Win Rate vs Total Skill Actions (ActInterval={interval})\n(All Bots Combined)',
-            figsize=(width, height),
-            add_per_bot_regression=True
-        )
-        if fig:
-            skill_figs[f'ActInterval_{interval}'] = fig
+    # for interval in sorted(data['ActInterval'].unique()):
+    #     interval_data = data[data['ActInterval'] == interval]
+    #     fig = plot_correlation_scatter(
+    #         interval_data,
+    #         x_col='TotalSkillAct',
+    #         y_col='WinRate',
+    #         title=f'Win Rate vs Total Skill Actions (ActInterval={interval})\n(All Bots Combined)',
+    #         figsize=(width, height),
+    #         add_per_bot_regression=True
+    #     )
+    #     if fig:
+    #         skill_figs[f'ActInterval_{interval}'] = fig
 
-    # By Timer
-    for timer in sorted(data['Timer'].unique()):
-        timer_data = data[data['Timer'] == timer]
-        fig = plot_correlation_scatter(
-            timer_data,
-            x_col='TotalSkillAct',
-            y_col='WinRate',
-            title=f'Win Rate vs Total Skill Actions (Timer={int(timer)}s)\n(All Bots Combined)',
-            figsize=(width, height),
-            add_per_bot_regression=True
-        )
-        if fig:
-            skill_figs[f'Timer_{int(timer)}'] = fig
+    # # By Timer
+    # for timer in sorted(data['Timer'].unique()):
+    #     timer_data = data[data['Timer'] == timer]
+    #     fig = plot_correlation_scatter(
+    #         timer_data,
+    #         x_col='TotalSkillAct',
+    #         y_col='WinRate',
+    #         title=f'Win Rate vs Total Skill Actions (Timer={int(timer)}s)\n(All Bots Combined)',
+    #         figsize=(width, height),
+    #         add_per_bot_regression=True
+    #     )
+    #     if fig:
+    #         skill_figs[f'Timer_{int(timer)}'] = fig
 
     # By Round
-    for round_type in sorted(data['Round'].unique()):
-        round_data = data[data['Round'] == round_type]
-        fig = plot_correlation_scatter(
-            round_data,
-            x_col='TotalSkillAct',
-            y_col='WinRate',
-            title=f'Win Rate vs Total Skill Actions ({round_type})\n(All Bots Combined)',
-            figsize=(width, height),
-            add_per_bot_regression=True
-        )
-        if fig:
-            skill_figs[f'Round_{round_type}'] = fig
+    # for round_type in sorted(data['Round'].unique()):
+    #     round_data = data[data['Round'] == round_type]
+    #     fig = plot_correlation_scatter(
+    #         round_data,
+    #         x_col='TotalSkillAct',
+    #         y_col='WinRate',
+    #         title=f'Win Rate vs Total Skill Actions ({round_type})\n(All Bots Combined)',
+    #         figsize=(width, height),
+    #         add_per_bot_regression=True
+    #     )
+    #     if fig:
+    #         skill_figs[f'Round_{round_type}'] = fig
 
     # By SkillType
-    if 'SkillLeft' in data.columns:
-        for skill in sorted(data['SkillLeft'].dropna().unique()):
-            skill_data = data[data['SkillLeft'] == skill]
-            fig = plot_correlation_scatter(
-                skill_data,
-                x_col='TotalSkillAct',
-                y_col='WinRate',
-                title=f'Win Rate vs Total Skill Actions (Skill={skill})\n(All Bots Combined)',
-                figsize=(width, height),
-                add_per_bot_regression=True
-            )
-            if fig:
-                skill_figs[f'Skill_{skill}'] = fig
+    # if 'SkillLeft' in data.columns:
+    #     for skill in sorted(data['SkillLeft'].dropna().unique()):
+    #         skill_data = data[data['SkillLeft'] == skill]
+    #         fig = plot_correlation_scatter(
+    #             skill_data,
+    #             x_col='TotalSkillAct',
+    #             y_col='WinRate',
+    #             title=f'Win Rate vs Total Skill Actions (Skill={skill})\n(All Bots Combined)',
+    #             figsize=(width, height),
+    #             add_per_bot_regression=True
+    #         )
+    #         if fig:
+    #             skill_figs[f'Skill_{skill}'] = fig
 
-    if skill_figs:
-        figs['skillactions'] = skill_figs
+    # if skill_figs:
+    #     figs['skillactions'] = skill_figs
 
     # e. Winrate vs Individual Actions
     action_types = ['Accelerate_Act', 'TurnLeft_Act', 'TurnRight_Act',
@@ -2092,10 +2092,10 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
 
     
     toc.h3(f"Action intensity over All Configuration")
-    fig = plot_timebins_intensity(df_timebins, mode="total", summary_df=df)
+    fig = plot_timebins_intensity(df_timebins, mode="total", timer=60, summary_df=df)
     st.pyplot(fig)
 
-    fig = plot_timebins_intensity(df_timebins, mode="per_action", summary_df=df)
+    fig = plot_timebins_intensity(df_timebins, mode="per_action", timer=60, summary_df=df)
     st.pyplot(fig)
 
     for timI in filters["Timer"]:
@@ -2113,10 +2113,10 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
     st.pyplot(fig)
 
     toc.h3(f"Collision intensity over All Configuration")
-    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total", summary_df=df)
+    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total", timer=60, summary_df=df)
     st.pyplot(fig)
 
-    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type", summary_df=df)
+    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type", timer=60, summary_df=df)
     st.pyplot(fig)
 
     # Action vs. Win Relation
