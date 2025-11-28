@@ -1812,7 +1812,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
     if 'Rank_L' in data.columns:
         rank_map = data.groupby('Bot')['Rank_L'].first().to_dict()
 
-    fig, axes = plt.subplots(2, 3, figsize=(width, height*1.2))
+    fig, axes = plt.subplots(2, 3, figsize=(width*1.2, height*1.5))
     axes = axes.flatten()
 
     for idx, action in enumerate(action_types):
@@ -1876,11 +1876,10 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {get_metric_name(action)}', fontsize=11, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
 
-        # Add legend below x-axis with rank title if rankings are available
-        legend_title = 'Bot (Rank)' if rank_map else 'Bot'
-        legend_padding = calculate_legend_padding(axes[idx], rotation=0)
-        axes[idx].legend(title=legend_title, fontsize=6, loc='upper center',
-                        bbox_to_anchor=(0.5, legend_padding*2), framealpha=0.7, ncol=3)
+    # Add legend below x-axis with rank title if rankings are available
+    legend_title = 'Bot (Rank)' if rank_map else 'Bot'
+    fig.legend(title=legend_title, fontsize=6, loc='upper center',
+                    bbox_to_anchor=(0.5, -0.05), framealpha=0.7, ncol=3)
 
     plt.suptitle('Win Rate vs Individual Action Types\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=0.995)
@@ -1896,7 +1895,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         if 'Rank_L' in data.columns:
             rank_map = data.groupby('Bot')['Rank_L'].first().to_dict()
 
-    fig, axes = plt.subplots(2, 2, figsize=(width, height*1.2))
+    fig, axes = plt.subplots(2, 2, figsize=(width*1.2, height*1.5))
     axes = axes.flatten()
 
     for idx, action in enumerate(action_types):
@@ -1960,11 +1959,10 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {get_metric_name(action)}', fontsize=11, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
 
-        # Add legend below x-axis with rank title if rankings are available
-        legend_title = 'Bot (Rank)' if rank_map else 'Bot'
-        legend_padding = calculate_legend_padding(axes[idx], rotation=0)
-        axes[idx].legend(title=legend_title, fontsize=6, loc='upper center',
-                        bbox_to_anchor=(0.5, legend_padding*2), framealpha=0.7, ncol=3)
+    # Add legend below x-axis with rank title if rankings are available
+    legend_title = 'Bot (Rank)' if rank_map else 'Bot'
+    fig.legend(title=legend_title, fontsize=6, loc='upper center',
+                    bbox_to_anchor=(0.5, -0.05), framealpha=0.7, ncol=3)
 
     plt.suptitle('Win Rate vs Individual Action Duration\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=0.995)
@@ -2054,176 +2052,176 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
 
 
 def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,width,height):
-    toc.h2("Overall Reports")
-    st.markdown("Analyze bot agent facing other agent with similar configurations")
+    # toc.h2("Overall Reports")
+    # st.markdown("Analyze bot agent facing other agent with similar configurations")
 
-    # Action and Collision Behaviour Charts
-    toc.h3("Bot Behaviour Overview")
-    col1, col2 = st.columns(2)
+    # # Action and Collision Behaviour Charts
+    # toc.h3("Bot Behaviour Overview")
+    # col1, col2 = st.columns(2)
 
-    with col1:
-        st.markdown("**Actions Behaviour**")
-        st.markdown("Mean action counts per bot across all configurations")
-        st.pyplot(plot_action_radar(df))
+    # with col1:
+    #     st.markdown("**Actions Behaviour**")
+    #     st.markdown("Mean action counts per bot across all configurations")
+    #     st.pyplot(plot_action_radar(df))
 
-    with col2:
-        st.markdown("**Collision Behaviour**")
-        st.markdown("Hit/Struck/Tie distribution per bot")
-        st.pyplot(plot_collision_radar(df))
+    # with col2:
+    #     st.markdown("**Collision Behaviour**")
+    #     st.markdown("Hit/Struck/Tie distribution per bot")
+    #     st.pyplot(plot_collision_radar(df))
 
-    # Win Rate Matrix
-    toc.h3("Win Rate Matrix")
-    st.markdown("Shows how often each bot wins against others across different matchups.")
-    st.markdown("This is calculated with taking mean of each configuration (10-games iteration matchup) resulting 240 games in total")
-    st.pyplot(plot_winrate_matrix(df,width, height))
+    # # Win Rate Matrix
+    # toc.h3("Win Rate Matrix")
+    # st.markdown("Shows how often each bot wins against others across different matchups.")
+    # st.markdown("This is calculated with taking mean of each configuration (10-games iteration matchup) resulting 240 games in total")
+    # st.pyplot(plot_winrate_matrix(df,width, height))
 
-    toc.h3("Action Taken all configuration")
-    st.pyplot(plot_overall_bot_metrics(df, metric="ActionCounts_L", title="Mean Action per Bot"))
+    # toc.h3("Action Taken all configuration")
+    # st.pyplot(plot_overall_bot_metrics(df, metric="ActionCounts_L", title="Mean Action per Bot"))
 
-    toc.h3("Action Duration all configuration")
-    st.pyplot(plot_overall_bot_metrics(df, metric="Duration_L", title="Mean Action Duration per Bot"))
+    # toc.h3("Action Duration all configuration")
+    # st.pyplot(plot_overall_bot_metrics(df, metric="Duration_L", title="Mean Action Duration per Bot"))
 
-    toc.h3("Collision over all configuration")
-    st.pyplot(plot_overall_bot_metrics(df, metric="Collisions_L", title="Mean Collisions per Bot"))
+    # toc.h3("Collision over all configuration")
+    # st.pyplot(plot_overall_bot_metrics(df, metric="Collisions_L", title="Mean Collisions per Bot"))
 
-    toc.h3("Match Duration all configuration")
-    st.pyplot(plot_overall_bot_metrics(df, metric="MatchDur", title="Mean Match Duration per Bot"))
+    # toc.h3("Match Duration all configuration")
+    # st.pyplot(plot_overall_bot_metrics(df, metric="MatchDur", title="Mean Match Duration per Bot"))
 
-    toc.h3("Win Rate grouped by Timer")
-    st.pyplot(plot_grouped_config_winrates(df, config_col="Timer"))
+    # toc.h3("Win Rate grouped by Timer")
+    # st.pyplot(plot_grouped_config_winrates(df, config_col="Timer"))
 
-    toc.h3("Win Rate grouped by Action Interval")
-    st.pyplot(plot_grouped_config_winrates(df, config_col="ActInterval"))
+    # toc.h3("Win Rate grouped by Action Interval")
+    # st.pyplot(plot_grouped_config_winrates(df, config_col="ActInterval"))
 
-    toc.h3("Win Rate grouped by Round")
-    st.pyplot(plot_grouped_config_winrates(df, config_col="Round"))
+    # toc.h3("Win Rate grouped by Round")
+    # st.pyplot(plot_grouped_config_winrates(df, config_col="Round"))
 
-    toc.h3("Win Rate grouped by Skill")
-    st.pyplot(plot_grouped_config_winrates(df, config_col="Skill"))
+    # toc.h3("Win Rate grouped by Skill")
+    # st.pyplot(plot_grouped_config_winrates(df, config_col="Skill"))
 
-    toc.h3("Collision grouped by Timer")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Timer"))
+    # toc.h3("Collision grouped by Timer")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Timer"))
 
-    toc.h3("Collision grouped by Action Interval")  
-    st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="ActInterval"))
+    # toc.h3("Collision grouped by Action Interval")  
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="ActInterval"))
 
-    toc.h3("Collision grouped by Round")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Round"))
+    # toc.h3("Collision grouped by Round")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Round"))
 
-    toc.h3("Collision grouped by Skill")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Skill"))
+    # toc.h3("Collision grouped by Skill")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Collisions_L", config_col="Skill"))
 
-    toc.h3("Action Taken grouped by Timer")
-    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Timer"))
+    # toc.h3("Action Taken grouped by Timer")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Timer"))
 
-    toc.h3("Action Taken grouped by Action Interval")
-    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="ActInterval"))
+    # toc.h3("Action Taken grouped by Action Interval")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="ActInterval"))
 
-    toc.h3("Action Taken grouped by Round")
-    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Round"))
+    # toc.h3("Action Taken grouped by Round")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Round"))
 
-    toc.h3("Action Taken grouped by Skill")
-    st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Skill"))
+    # toc.h3("Action Taken grouped by Skill")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="ActionCounts_L", config_col="Skill"))
 
-    toc.h3("Action Duration grouped by Timer")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Timer"))
+    # toc.h3("Action Duration grouped by Timer")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Timer"))
 
-    toc.h3("Action Duration grouped by Action Interval")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="ActInterval"))
+    # toc.h3("Action Duration grouped by Action Interval")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="ActInterval"))
 
-    toc.h3("Action Duration grouped by Round")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Round"))
+    # toc.h3("Action Duration grouped by Round")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Round"))
 
-    toc.h3("Action Duration grouped by Skill")
-    st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Skill"))
+    # toc.h3("Action Duration grouped by Skill")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="Duration_L", config_col="Skill"))
 
-    toc.h3("Match Duration grouped by Timer")
-    st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="Timer"))
+    # toc.h3("Match Duration grouped by Timer")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="Timer"))
 
-    toc.h3("Match Duration grouped by Action Interval")
-    st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="ActInterval"))
+    # toc.h3("Match Duration grouped by Action Interval")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="ActInterval"))
 
-    toc.h3("Match Duration grouped by Round")
-    st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="Round"))
+    # toc.h3("Match Duration grouped by Round")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="Round"))
 
-    toc.h3("Match Duration grouped by Skill")
-    st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="Skill"))
+    # toc.h3("Match Duration grouped by Skill")
+    # st.pyplot(plot_grouped_config_winrates(df, metric="MatchDur", config_col="Skill"))
 
-    # toc.h3("Win Rate over Timer Configuration")
-    # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
+    # # toc.h3("Win Rate over Timer Configuration")
+    # # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
 
-    # toc.h3("Win Rate over Round Configuration")
-    # st.pyplot(plot_bot_winrate_by_config(df,config_col="Round"))
+    # # toc.h3("Win Rate over Round Configuration")
+    # # st.pyplot(plot_bot_winrate_by_config(df,config_col="Round"))
 
-    # toc.h3("Win Rate over Action Interval Configuration")
-    # st.pyplot(plot_bot_winrate_by_config(df,config_col="ActInterval"))
+    # # toc.h3("Win Rate over Action Interval Configuration")
+    # # st.pyplot(plot_bot_winrate_by_config(df,config_col="ActInterval"))
 
-    # toc.h3("Full Configuration Cross Analysis")
-    # st.pyplot(plot_full_cross_heatmap_half(df, bot_name="Bot_NN", lower_triangle=True))
+    # # toc.h3("Full Configuration Cross Analysis")
+    # # st.pyplot(plot_full_cross_heatmap_half(df, bot_name="Bot_NN", lower_triangle=True))
 
-    # toc.h3("Win Rate over SkillLeft Configuration")
-    # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
+    # # toc.h3("Win Rate over SkillLeft Configuration")
+    # # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
 
-    # toc.h3("Win Rate over SkillRight Configuration")
-    # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
+    # # toc.h3("Win Rate over SkillRight Configuration")
+    # # st.pyplot(plot_bot_winrate_by_config(df,config_col="Timer"))
 
-    # Time-Related Trends
-    toc.h3("Time-Related Trends")
-    st.markdown("Analyzes Bots aggressivenes over game duration with determining how much action taken duration related to the overall game duration (Time Setting)")
-    st.markdown("Higher timers don't always lead to longer matches.\n"\
-        "Some matchups finish fights early regardless of time limit.")
-    figs = plot_time_related(df,width, height)
-    for fig in figs:
-        st.pyplot(fig)
+    # # Time-Related Trends
+    # toc.h3("Time-Related Trends")
+    # st.markdown("Analyzes Bots aggressivenes over game duration with determining how much action taken duration related to the overall game duration (Time Setting)")
+    # st.markdown("Higher timers don't always lead to longer matches.\n"\
+    #     "Some matchups finish fights early regardless of time limit.")
+    # figs = plot_time_related(df,width, height)
+    # for fig in figs:
+    #     st.pyplot(fig)
 
-    toc.h3(f"Action distribution per bots")
-    fig = plot_action_distribution_stacked(df, normalize=True)
-    st.pyplot(fig)
+    # toc.h3(f"Action distribution per bots")
+    # fig = plot_action_distribution_stacked(df, normalize=True)
+    # st.pyplot(fig)
 
-    for timI in filters["Timer"]:
-        for actI in filters["ActInterval"]:
+    # for timI in filters["Timer"]:
+    #     for actI in filters["ActInterval"]:
 
-            toc.h3(f"Action intensity over Timer={timI}, ActionInterval={actI}")
-            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
-            st.pyplot(fig)
+    #         toc.h3(f"Action intensity over Timer={timI}, ActionInterval={actI}")
+    #         fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
+    #         st.pyplot(fig)
 
-            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="per_action", summary_df=df)
-            st.pyplot(fig)
+    #         fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="per_action", summary_df=df)
+    #         st.pyplot(fig)
 
     
-    toc.h3(f"Action intensity over All Configuration")
-    fig = plot_timebins_intensity(df_timebins, mode="total", timer=60, summary_df=df)
-    st.pyplot(fig)
+    # toc.h3(f"Action intensity over All Configuration")
+    # fig = plot_timebins_intensity(df_timebins, mode="total", timer=60, summary_df=df)
+    # st.pyplot(fig)
 
-    fig = plot_timebins_intensity(df_timebins, mode="per_action", timer=60, summary_df=df)
-    st.pyplot(fig)
+    # fig = plot_timebins_intensity(df_timebins, mode="per_action", timer=60, summary_df=df)
+    # st.pyplot(fig)
 
-    for timI in filters["Timer"]:
-        for actI in filters["ActInterval"]:
+    # for timI in filters["Timer"]:
+    #     for actI in filters["ActInterval"]:
 
-            toc.h3(f"Collision intensity over Timer={timI}, ActionInterval={actI}")
-            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
-            st.pyplot(fig)
+    #         toc.h3(f"Collision intensity over Timer={timI}, ActionInterval={actI}")
+    #         fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
+    #         st.pyplot(fig)
 
-            fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="per_type", summary_df=df)
-            st.pyplot(fig)
+    #         fig = plot_collision_timebins_intensity(df_collision_timebins, timer=timI, act_interval=actI, mode="per_type", summary_df=df)
+    #         st.pyplot(fig)
 
-    toc.h3(f"Collision detail distribution per bots")
-    fig = plot_collision_distribution_stacked(df, normalize=True)
-    st.pyplot(fig)
+    # toc.h3(f"Collision detail distribution per bots")
+    # fig = plot_collision_distribution_stacked(df, normalize=True)
+    # st.pyplot(fig)
 
-    toc.h3(f"Collision intensity over All Configuration")
-    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total", timer=60, summary_df=df)
-    st.pyplot(fig)
+    # toc.h3(f"Collision intensity over All Configuration")
+    # fig = plot_collision_timebins_intensity(df_collision_timebins, mode="total", timer=60, summary_df=df)
+    # st.pyplot(fig)
 
-    fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type", timer=60, summary_df=df)
-    st.pyplot(fig)
+    # fig = plot_collision_timebins_intensity(df_collision_timebins, mode="per_type", timer=60, summary_df=df)
+    # st.pyplot(fig)
 
-    # Action vs. Win Relation
-    toc.h3("Action taken vs. Win Relation")
-    st.markdown("Does spending most action (aggresive) leads to a win?")
-    st.markdown("This taking mean of action-taken per games versus win-rate")
-    st.pyplot(plot_action_win_related(df,width, height))
+    # # Action vs. Win Relation
+    # toc.h3("Action taken vs. Win Relation")
+    # st.markdown("Does spending most action (aggresive) leads to a win?")
+    # st.markdown("This taking mean of action-taken per games versus win-rate")
+    # st.pyplot(plot_action_win_related(df,width, height))
 
     # Pearson Correlation Analysis
     toc.h2("Pearson Correlation Analysis")
