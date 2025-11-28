@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     show_overall_analysis(df,cfg,df_timebins, df_collision_timebins,toc,width,height)
 
-    # show_individual_report(df,toc,width,height)
+    show_individual_report(df,toc,width,height)
 
     # Arena Heatmaps
     toc.h2("Arena Heatmaps - Bot Movement Analysis")
