@@ -1877,9 +1877,20 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].grid(True, alpha=0.3, linestyle='--')
 
     # Add legend below x-axis with rank title if rankings are available
+    handles, labels = [], []
+    for ax in fig.axes:
+        h, l = ax.get_legend_handles_labels()
+        handles.extend(h)
+        labels.extend(l)
+
+    # Deduplicate while preserving order
+    unique = dict(zip(labels, handles))
     legend_title = 'Bot (Rank)' if rank_map else 'Bot'
-    fig.legend(title=legend_title, fontsize=6, loc='upper center',
-                    bbox_to_anchor=(0.5, -0.05), framealpha=0.7, ncol=3)
+    fig.legend(unique.values(), unique.keys(),
+           title=legend_title, fontsize=6,
+           loc='upper center',
+           bbox_to_anchor=(0.5, -0.05),
+           framealpha=0.7, ncol=3)
 
     plt.suptitle('Win Rate vs Individual Action Types\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=0.995)
@@ -1960,9 +1971,20 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].grid(True, alpha=0.3, linestyle='--')
 
     # Add legend below x-axis with rank title if rankings are available
+    handles, labels = [], []
+    for ax in fig.axes:
+        h, l = ax.get_legend_handles_labels()
+        handles.extend(h)
+        labels.extend(l)
+
+    # Deduplicate while preserving order
+    unique = dict(zip(labels, handles))
     legend_title = 'Bot (Rank)' if rank_map else 'Bot'
-    fig.legend(title=legend_title, fontsize=6, loc='upper center',
-                    bbox_to_anchor=(0.5, -0.05), framealpha=0.7, ncol=3)
+    fig.legend(unique.values(), unique.keys(),
+           title=legend_title, fontsize=6,
+           loc='upper center',
+           bbox_to_anchor=(0.5, -0.05),
+           framealpha=0.7, ncol=3)
 
     plt.suptitle('Win Rate vs Individual Action Duration\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=0.995)
@@ -2037,11 +2059,22 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                            fontsize=12, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
 
-        # Add legend below x-axis with rank title if rankings are available
-        legend_title = 'Bot (Rank)' if rank_map else 'Bot'
-        legend_padding = calculate_legend_padding(axes[idx], rotation=0)
-        axes[idx].legend(title=legend_title, loc='upper center',
-                        bbox_to_anchor=(0.5, legend_padding), fontsize=7, framealpha=0.9, ncol=3)
+    # Add legend below x-axis with rank title if rankings are available
+    handles, labels = [], []
+    for ax in fig.axes:
+        h, l = ax.get_legend_handles_labels()
+        handles.extend(h)
+        labels.extend(l)
+
+    # Deduplicate while preserving order
+    unique = dict(zip(labels, handles))
+    legend_title = 'Bot (Rank)' if rank_map else 'Bot'
+    fig.legend(unique.values(), unique.keys(),
+           title=legend_title, fontsize=6,
+           loc='upper center',
+           bbox_to_anchor=(0.5, -0.05),
+           framealpha=0.7, ncol=3)
+
 
     plt.suptitle(f'Win Rate vs Collision Types\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=1.00)
