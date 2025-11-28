@@ -271,7 +271,7 @@ def prepare_individual_bot_data(df, bot_name):
 
 
 def plot_individual_correlation_scatter(data, x_col, y_col, title, bot_name,
-                                       alpha=0.6, figsize=(10, 8), add_jitter=False):
+                                       alpha=0.95, figsize=(10, 8), add_jitter=False):
     """
     Create scatter plot with regression line and Pearson correlation for individual bot.
 
@@ -341,7 +341,7 @@ def plot_individual_correlation_scatter(data, x_col, y_col, title, bot_name,
     return fig
 
 
-def plot_individual_bot_correlations(df, bot_name, width=10, height=8):
+def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2):
     """
     Create all correlation plots for a specific bot.
     For config variables, plots win rate directly against the config values.
@@ -378,11 +378,17 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8):
         figs['actinterval'] = fig
 
     # b. Winrate vs Round type (direct correlation)
+    # Build dynamic round type mapping for title
+    round_mapping = data[['Round', 'RoundNumeric']].drop_duplicates().dropna()
+    round_labels = ', '.join([f"{int(row['RoundNumeric'])}={row['Round']}"
+                              for _, row in round_mapping.sort_values('RoundNumeric').iterrows()])
+    round_title = f'Win Rate vs Round Type ({round_labels})' if round_labels else 'Win Rate vs Round Type'
+
     fig = plot_individual_correlation_scatter(
         data,
         x_col='RoundNumeric',
         y_col='WinRate',
-        title='Win Rate vs Round Type (1=BestOf1, 3=BestOf3)',
+        title=round_title,
         bot_name=bot_name,
         figsize=(width, height),
         add_jitter=False
@@ -439,7 +445,7 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8):
 
         # Scatter plot
         axes[idx].scatter(plot_data[action], plot_data['WinRate'],
-                        alpha=0.6, s=50, color='steelblue', edgecolors='black', linewidth=0.5)
+                        alpha=alpha, s=50, color='steelblue', edgecolors='black', linewidth=0.5)
 
         # Regression line
         if len(plot_data) >= 2 and plot_data[action].std() > 0:
@@ -486,7 +492,7 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8):
 
         # Scatter plot
         axes[idx].scatter(plot_data[action], plot_data['WinRate'],
-                        alpha=0.6, s=50, color='steelblue', edgecolors='black', linewidth=0.5)
+                        alpha=alpha, s=50, color='steelblue', edgecolors='black', linewidth=0.5)
 
         # Regression line
         if len(plot_data) >= 2 and plot_data[action].std() > 0:
@@ -533,7 +539,7 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8):
 
         # Scatter plot
         axes[idx].scatter(plot_data[col_type], plot_data['WinRate'],
-                        alpha=0.6, s=60, color='steelblue', edgecolors='black', linewidth=0.5)
+                        alpha=alpha, s=60, color='steelblue', edgecolors='black', linewidth=0.5)
 
         # Regression line
         if len(plot_data) >= 2 and plot_data[col_type].std() > 0:

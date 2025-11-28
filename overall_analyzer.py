@@ -1192,8 +1192,9 @@ def plot_action_distribution_stacked(df, bot_col="Bot_L", width=10, height=6, no
         ax.set_ylabel('Total Action Count', fontsize=12, fontweight='bold')
         ax.set_title('Action Type Distribution per Bot',
                      fontsize=14, fontweight='bold', pad=15)
-
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=5,
+        
+    legend_padding = calculate_legend_padding(ax, rotation=0)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, legend_padding), ncol=5,
               fontsize=10, framealpha=0.9)
     ax.grid(axis='y', linestyle='--', alpha=0.3)
 
@@ -1293,8 +1294,9 @@ def plot_collision_distribution_stacked(df, bot_col="Bot_L", width=10, height=6,
         ax.set_ylabel('Total Collision Count', fontsize=12, fontweight='bold')
         ax.set_title('Collision Type Distribution per Bot',
                      fontsize=14, fontweight='bold', pad=15)
-
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3,
+        
+    legend_padding = calculate_legend_padding(ax, rotation=0)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, legend_padding), ncol=3,
               fontsize=10, framealpha=0.9)
     ax.grid(axis='y', linestyle='--', alpha=0.3)
 
@@ -1541,7 +1543,7 @@ def prepare_correlation_data(df):
 
 
 def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
-                            alpha=0.5, figsize=(10, 8), add_jitter=False, add_per_bot_regression=False):
+                            alpha=0.95, figsize=(10, 8), add_jitter=False, add_per_bot_regression=False):
     """
     Create scatter plot with regression line and Pearson correlation.
 
@@ -1585,15 +1587,36 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
     else:
         plot_data['x_jittered'] = x_values
 
+    # Get bot rankings if available
+    rank_map = {}
+    if 'Rank_L' in data.columns and color_by == 'Bot':
+        rank_map = data.groupby('Bot')['Rank_L'].first().to_dict()
+
     # Scatter plot with colors by bot
     if color_by in plot_data.columns:
         unique_values = plot_data[color_by].unique()
+        # Sort by rank if available, otherwise alphabetically
+        if rank_map:
+            unique_values = sorted(unique_values, key=lambda v: rank_map.get(v, 999))
+        else:
+            unique_values = sorted(unique_values)
         colors = plt.cm.tab10(np.linspace(0, 1, len(unique_values)))
 
         for idx, value in enumerate(unique_values):
             mask = plot_data[color_by] == value
+
+            # Get bot marker
+            marker = get_bot_marker(value) if color_by == 'Bot' else 'o'
+
+            # Create label with rank if available
+            if rank_map and value in rank_map:
+                label = f"{value} (#{int(rank_map[value])})"
+            else:
+                label = value
+
             ax.scatter(plot_data[mask]['x_jittered'], plot_data[mask][y_col],
-                      label=value, alpha=alpha, s=50, color=colors[idx])
+                      label=label, alpha=alpha, s=60, color=colors[idx],
+                      marker=marker, edgecolors='black', linewidth=0.5)
 
             # Add per-bot regression line if requested
             if add_per_bot_regression:
@@ -1605,7 +1628,8 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
                     bot_y_line = bot_slope * bot_x_line + bot_intercept
                     ax.plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=colors[idx], alpha=0.7)
     else:
-        ax.scatter(plot_data['x_jittered'], plot_data[y_col], alpha=alpha, s=50)
+        ax.scatter(plot_data['x_jittered'], plot_data[y_col], alpha=alpha, s=60,
+                  edgecolors='black', linewidth=0.5)
 
     # Add overall regression line (using original non-jittered data)
     slope, intercept = np.polyfit(x_values, plot_data[y_col], 1)
@@ -1625,15 +1649,18 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
     ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
     ax.grid(True, alpha=0.3, linestyle='--')
 
-    # Legend
+    # Legend - position below x-axis
     if color_by in plot_data.columns:
-        ax.legend(loc='best', fontsize=8, framealpha=0.9, ncol=1)
+        legend_title = "Bot (Rank)" if (color_by == 'Bot' and rank_map) else color_by
+        legend_padding = calculate_legend_padding(ax, rotation=0)
+        ax.legend(title=legend_title, loc='upper center', bbox_to_anchor=(0.5, legend_padding),
+                 fontsize=8, framealpha=0.9, ncol=3, markerscale=1.2)
 
     plt.tight_layout()
     return fig
 
 
-def plot_all_correlations(df, width=10, height=8):
+def plot_all_correlations(df, width=10, height=8,alpha=0.2):
     """
     Create all correlation plots for win rate analysis.
     For config variables, creates separate plots for each config value.
@@ -1659,20 +1686,26 @@ def plot_all_correlations(df, width=10, height=8):
         title='Win Rate vs Action Interval\n(All Bots Combined)',
         figsize=(width, height),
         add_jitter=False,
-        add_per_bot_regression=True
+        add_per_bot_regression=True,alpha=alpha
     )
     if fig:
         figs['actinterval'] = fig
 
     # b. Winrate vs Round type (direct correlation with per-bot regression)
+    # Build dynamic round type mapping for title
+    round_mapping = data[['Round', 'RoundNumeric']].drop_duplicates().dropna()
+    round_labels = ', '.join([f"{int(row['RoundNumeric'])}={row['Round']}"
+                              for _, row in round_mapping.sort_values('RoundNumeric').iterrows()])
+    round_title = f'Win Rate vs Round Type ({round_labels})\n(All Bots Combined)' if round_labels else 'Win Rate vs Round Type\n(All Bots Combined)'
+
     fig = plot_correlation_scatter(
         data,
         x_col='RoundNumeric',
         y_col='WinRate',
-        title='Win Rate vs Round Type (1=BestOf1, 3=BestOf3)\n(All Bots Combined)',
+        title=round_title,
         figsize=(width, height),
         add_jitter=False,
-        add_per_bot_regression=True
+        add_per_bot_regression=True,alpha=alpha
     )
     if fig:
         figs['roundtype'] = fig
@@ -1685,7 +1718,7 @@ def plot_all_correlations(df, width=10, height=8):
         title='Win Rate vs Timer Duration\n(All Bots Combined)',
         figsize=(width, height),
         add_jitter=False,
-        add_per_bot_regression=True
+        add_per_bot_regression=True,alpha=alpha
     )
     if fig:
         figs['timer'] = fig
@@ -1702,7 +1735,7 @@ def plot_all_correlations(df, width=10, height=8):
             title='Win Rate vs Skill Type (1=Stone, 2=Boost)\n(All Bots Combined)',
             figsize=(width, height),
             add_jitter=False,
-            add_per_bot_regression=True
+            add_per_bot_regression=True,alpha=alpha
         )
         if fig:
             figs['skilltype'] = fig
@@ -1774,7 +1807,12 @@ def plot_all_correlations(df, width=10, height=8):
     action_types = ['Accelerate_Act', 'TurnLeft_Act', 'TurnRight_Act',
                    'Dash_Act', 'SkillBoost_Act', 'SkillStone_Act']
 
-    fig, axes = plt.subplots(2, 3, figsize=(width*1.8, height*1.2))
+    # Get bot rankings if available
+    rank_map = {}
+    if 'Rank_L' in data.columns:
+        rank_map = data.groupby('Bot')['Rank_L'].first().to_dict()
+
+    fig, axes = plt.subplots(2, 3, figsize=(width, height*1.2))
     axes = axes.flatten()
 
     for idx, action in enumerate(action_types):
@@ -1791,14 +1829,26 @@ def plot_all_correlations(df, width=10, height=8):
         # Calculate Pearson correlation
         pearson_r, pearson_p = stats.pearsonr(plot_data[action], plot_data['WinRate'])
 
-        # Scatter plot
+        # Scatter plot - sort bots by rank
         unique_bots = plot_data['Bot'].unique()
+        if rank_map:
+            # Sort bots by rank
+            unique_bots = sorted(unique_bots, key=lambda b: rank_map.get(b, 999))
         colors = plt.cm.tab10(np.linspace(0, 1, len(unique_bots)))
 
         for bot_idx, bot in enumerate(unique_bots):
             mask = plot_data['Bot'] == bot
+            marker = get_bot_marker(bot)
+
+            # Create label with rank if available
+            if rank_map and bot in rank_map:
+                label = f"{bot} (#{int(rank_map[bot])})"
+            else:
+                label = bot
+
             axes[idx].scatter(plot_data[mask][action], plot_data[mask]['WinRate'],
-                            label=bot, alpha=0.5, s=30, color=colors[bot_idx])
+                            label=label, alpha=alpha, s=30, color=colors[bot_idx],
+                            marker=marker, edgecolors='black', linewidth=0.5)
 
             # Per-bot regression line
             bot_x = plot_data[mask][action].values
@@ -1825,7 +1875,12 @@ def plot_all_correlations(df, width=10, height=8):
         axes[idx].set_ylabel(get_metric_name('WinRate'), fontsize=10)
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {get_metric_name(action)}', fontsize=11, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
-        axes[idx].legend(fontsize=6, loc='best', framealpha=0.7)
+
+        # Add legend below x-axis with rank title if rankings are available
+        legend_title = 'Bot (Rank)' if rank_map else 'Bot'
+        legend_padding = calculate_legend_padding(axes[idx], rotation=0)
+        axes[idx].legend(title=legend_title, fontsize=6, loc='upper center',
+                        bbox_to_anchor=(0.5, legend_padding*2), framealpha=0.7, ncol=3)
 
     plt.suptitle('Win Rate vs Individual Action Types\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=0.995)
@@ -1835,7 +1890,13 @@ def plot_all_correlations(df, width=10, height=8):
     # e. Winrate vs Individual Actions
     action_types = ['Accelerate_Dur', 'TurnLeft_Dur', 'TurnRight_Dur', 'Dash_Dur']
 
-    fig, axes = plt.subplots(2, 2, figsize=(width*1.8, height*1.2))
+    # Get bot rankings if available (reuse from above if already set)
+    if 'rank_map' not in locals():
+        rank_map = {}
+        if 'Rank_L' in data.columns:
+            rank_map = data.groupby('Bot')['Rank_L'].first().to_dict()
+
+    fig, axes = plt.subplots(2, 2, figsize=(width, height*1.2))
     axes = axes.flatten()
 
     for idx, action in enumerate(action_types):
@@ -1852,14 +1913,26 @@ def plot_all_correlations(df, width=10, height=8):
         # Calculate Pearson correlation
         pearson_r, pearson_p = stats.pearsonr(plot_data[action], plot_data['WinRate'])
 
-        # Scatter plot
+        # Scatter plot - sort bots by rank
         unique_bots = plot_data['Bot'].unique()
+        if rank_map:
+            # Sort bots by rank
+            unique_bots = sorted(unique_bots, key=lambda b: rank_map.get(b, 999))
         colors = plt.cm.tab10(np.linspace(0, 1, len(unique_bots)))
 
         for bot_idx, bot in enumerate(unique_bots):
             mask = plot_data['Bot'] == bot
+            marker = get_bot_marker(bot)
+
+            # Create label with rank if available
+            if rank_map and bot in rank_map:
+                label = f"{bot} (#{int(rank_map[bot])})"
+            else:
+                label = bot
+
             axes[idx].scatter(plot_data[mask][action], plot_data[mask]['WinRate'],
-                            label=bot, alpha=0.5, s=30, color=colors[bot_idx])
+                            label=label, alpha=alpha, s=30, color=colors[bot_idx],
+                            marker=marker, edgecolors='black', linewidth=0.5)
 
             # Per-bot regression line
             bot_x = plot_data[mask][action].values
@@ -1886,7 +1959,12 @@ def plot_all_correlations(df, width=10, height=8):
         axes[idx].set_ylabel(get_metric_name('WinRate'), fontsize=10)
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {get_metric_name(action)}', fontsize=11, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
-        axes[idx].legend(fontsize=6, loc='best', framealpha=0.7)
+
+        # Add legend below x-axis with rank title if rankings are available
+        legend_title = 'Bot (Rank)' if rank_map else 'Bot'
+        legend_padding = calculate_legend_padding(axes[idx], rotation=0)
+        axes[idx].legend(title=legend_title, fontsize=6, loc='upper center',
+                        bbox_to_anchor=(0.5, legend_padding*2), framealpha=0.7, ncol=3)
 
     plt.suptitle('Win Rate vs Individual Action Duration\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=0.995)
@@ -1896,6 +1974,11 @@ def plot_all_correlations(df, width=10, height=8):
     # f. Winrate vs Collision Types (Hit, Struck, Tie) - Combined across all configs
     collision_types = ['Collisions_L', 'Collisions_R', 'Collisions_Tie']
     collision_labels = {'Collisions_L': 'Hit', 'Collisions_R': 'Struck', 'Collisions_Tie': 'Tie'}
+
+    # Get bot rankings if available
+    rank_map = {}
+    if 'Rank_L' in data.columns:
+        rank_map = data.groupby('Bot')['Rank_L'].first().to_dict()
 
     fig, axes = plt.subplots(1, 3, figsize=(width*1.8, height))
 
@@ -1913,17 +1996,29 @@ def plot_all_correlations(df, width=10, height=8):
         # Calculate Pearson correlation
         pearson_r, pearson_p = stats.pearsonr(plot_data[col_type], plot_data['WinRate'])
 
-        # Get unique bots and assign colors
-        unique_bots = sorted(plot_data['Bot'].unique())
+        # Get unique bots and assign colors - sort by rank
+        unique_bots = plot_data['Bot'].unique()
+        if rank_map:
+            # Sort bots by rank
+            unique_bots = sorted(unique_bots, key=lambda b: rank_map.get(b, 999))
+        else:
+            unique_bots = sorted(unique_bots)
         colors = plt.cm.tab10(np.linspace(0, 1, len(unique_bots)))
 
         # Scatter plot colored by bot
         for bot_idx, bot in enumerate(unique_bots):
             bot_data = plot_data[plot_data['Bot'] == bot]
             marker = get_bot_marker(bot)
+
+            # Create label with rank if available
+            if rank_map and bot in rank_map:
+                label = f"{bot} (#{int(rank_map[bot])})"
+            else:
+                label = bot
+
             axes[idx].scatter(bot_data[col_type], bot_data['WinRate'],
-                            alpha=0.6, s=60, color=colors[bot_idx], marker=marker,
-                            label=bot, edgecolors='black', linewidth=0.5)
+                            alpha=alpha, s=60, color=colors[bot_idx], marker=marker,
+                            label=label, edgecolors='black', linewidth=0.5)
 
         # Overall regression line
         if len(plot_data) >= 2 and plot_data[col_type].std() > 0:
@@ -1943,7 +2038,12 @@ def plot_all_correlations(df, width=10, height=8):
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {collision_labels[col_type]}',
                            fontsize=12, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
-        axes[idx].legend(loc='best', fontsize=7, framealpha=0.9, ncol=2)
+
+        # Add legend below x-axis with rank title if rankings are available
+        legend_title = 'Bot (Rank)' if rank_map else 'Bot'
+        legend_padding = calculate_legend_padding(axes[idx], rotation=0)
+        axes[idx].legend(title=legend_title, loc='upper center',
+                        bbox_to_anchor=(0.5, legend_padding), fontsize=7, framealpha=0.9, ncol=3)
 
     plt.suptitle(f'Win Rate vs Collision Types\n(All Bots Combined)',
                  fontsize=14, fontweight='bold', y=1.00)
