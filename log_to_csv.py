@@ -3,6 +3,7 @@ import re
 import json
 import csv
 from glob import glob
+import shutil
 from tqdm import tqdm  # optional: pip install tqdm
 
 
@@ -185,41 +186,84 @@ def convert_logs_to_csv(folder_path: str, output_path: str):
     print(f"✅ Saved CSV: {output_path}")
 
 
-def convert_all_configs(simulation_root: str):
+def convert_all_configs(simulation_root: str, output_root: str):
     """Convert all config folders recursively (Timer_*)."""
     config_folders = []
     for root, dirs, _ in os.walk(simulation_root):
         for d in dirs:
             if d.startswith("Timer_"):
                 config_folders.append(os.path.join(root, d))
-
+    
     for i, config_folder in enumerate(config_folders, 1):
         config_name = os.path.basename(config_folder)
-        output_path = os.path.join(config_folder, f"{config_name}.csv")
+        parent_name = os.path.basename(os.path.dirname(config_folder))
 
+        print(f"DEBUG: config_folder = {config_folder}")
+        print(f"DEBUG: parent_name = {parent_name}")
+        print(f"DEBUG: config_name = {config_name}")
+
+        
+        # Create output folder with parent structure if it doesn't exist
+        output_folder = os.path.join(output_root, parent_name, config_name)
+        os.makedirs(output_folder, exist_ok=True)
+        
+        output_path = os.path.join(output_folder, f"{config_name}.csv")
+        
+        if os.path.isfile(output_path):
+            print(f"[{i}/{len(config_folders)}] Skipped {config_name} already exists")
+            continue
+        
+        # Check if CSV exists in original location, move it instead of regenerating
+        old_csv_path = os.path.join(config_folder, f"{config_name}.csv")
+        if os.path.isfile(old_csv_path):
+            shutil.move(old_csv_path, output_path)
+            print(f"[{i}/{len(config_folders)}] Moved {config_name} to output folder")
+            continue
+        
+        print(f"[{i}/{len(config_folders)}] Processing {config_name}")
+        convert_logs_to_csv(config_folder, output_path)
+        config_name = os.path.basename(config_folder)
+        
+        # Create output folder if it doesn't exist
+        output_folder = os.path.join(output_root, parent_name,config_name)
+        os.makedirs(output_folder, exist_ok=True)
+        
+        output_path = os.path.join(output_folder, f"{config_name}.csv")
+        
+        if os.path.isfile(output_path):
+            print(f"[{i}/{len(config_folders)}] Skipped {config_name} already exists")
+            continue
+        
+        # Check if CSV exists in original location, move it instead of regenerating
+        old_csv_path = os.path.join(config_folder, f"{config_name}.csv")
+        if os.path.isfile(old_csv_path):
+            shutil.move(old_csv_path, output_path)
+            print(f"[{i}/{len(config_folders)}] Moved {config_name} to output folder")
+            continue
+        
         print(f"[{i}/{len(config_folders)}] Processing {config_name}")
         convert_logs_to_csv(config_folder, output_path)
 
 
 if __name__ == "__main__":
     # Example usage:
-    incompletes = [
-        ["Bot_GA_vs_Bot_Primitive","Timer_60__ActInterval_0.1__Round_BestOf5__SkillLeft_Boost__SkillRight_Boost"],
-        ["Bot_FSM_vs_Bot_Primitive","Timer_15__ActInterval_0.1__Round_BestOf3__SkillLeft_Boost__SkillRight_Boost"],
-        ["Bot_BT_vs_Bot_UtilityAI","Timer_45__ActInterval_0.1__Round_BestOf5__SkillLeft_Stone__SkillRight_Stone"],
-        ["Bot_UtilityAI_vs_Bot_FSM","Timer_15__ActInterval_0.1__Round_BestOf5__SkillLeft_Boost__SkillRight_Stone"]
-    ]
+    # incompletes = [
+    #     ["Bot_GA_vs_Bot_Primitive","Timer_60__ActInterval_0.1__Round_BestOf5__SkillLeft_Boost__SkillRight_Boost"],
+    #     ["Bot_FSM_vs_Bot_Primitive","Timer_15__ActInterval_0.1__Round_BestOf3__SkillLeft_Boost__SkillRight_Boost"],
+    #     ["Bot_BT_vs_Bot_UtilityAI","Timer_45__ActInterval_0.1__Round_BestOf5__SkillLeft_Stone__SkillRight_Stone"],
+    #     ["Bot_UtilityAI_vs_Bot_FSM","Timer_15__ActInterval_0.1__Round_BestOf5__SkillLeft_Boost__SkillRight_Stone"]
+    # ]
     simulation_root = "/Users/defdef/Library/Application Support/DefaultCompany/Sumobot/Simulation"
-
-    for inc in incompletes:
-        name = inc[1]
-        specific_folder = os.path.join(
-            simulation_root,
-            inc[0],
-            name,
-        )
-        convert_logs_to_csv(specific_folder, os.path.join(specific_folder, f"{name}.csv"))
+    # output_root = "C:/Simulation_CSV"
+    # for inc in incompletes:
+    #     name = inc[1]
+    #     specific_folder = os.path.join(
+    #         simulation_root,
+    #         inc[0],
+    #         name,
+    #     )
+    #     convert_logs_to_csv(specific_folder, os.path.join(specific_folder, f"{name}.csv"))
 
 
     # OR convert all configs:
-    # convert_all_configs(simulation_root)
+    convert_all_configs(simulation_root,simulation_root)

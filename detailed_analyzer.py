@@ -1774,6 +1774,124 @@ def create_phased_heatmaps_all_bots(base_dir, output_dir="arena_heatmap", actor_
             else:
                 print(f"No data available for position distribution")
 
+    # ========== Generate distance distributions per bot ==========
+    print("\n" + "=" * 60)
+    print("Generating distance distributions for each bot (across all matchups)...")
+    print("=" * 60)
+
+    # Collect data per bot (across all matchups)
+    bot_distance_data = {}  # {bot_name: [distance_between_series, distance_from_center_series]}
+
+    # Process each matchup
+    for matchup_folder in matchup_folders:
+        print("\n" + "=" * 60)
+        print(f"Processing matchup: {matchup_folder}")
+        print("=" * 60)
+
+        # Extract bot names
+        parts = matchup_folder.split("_vs_")
+        if len(parts) != 2:
+            print(f"  Skipping invalid matchup folder name: {matchup_folder}")
+            continue
+
+        bot1_name, bot2_name = parts[0], parts[1]
+
+        # Load data for this matchup
+        df = load_all_game_data(base_dir, bot1_name, bot2_name, chunksize, max_configs)
+
+        if df.is_empty():
+            print(f"  No data found for {matchup_folder}, skipping...")
+            continue
+
+        # Apply skip_initial filter if specified (per game)
+        if skip_initial > 0:
+            print(f"  ⏩ Skipping initial {skip_initial}s of data per game to remove spawn bias...")
+            df = df.filter(
+                pl.col("UpdatedAt") >= pl.col("UpdatedAt").min().over("GameIndex") + skip_initial
+            )
+            if df.is_empty():
+                print(f"  No data remaining after skipping initial {skip_initial}s, skipping matchup...")
+                continue
+            print(f"  Samples after filter: {len(df):,}")
+
+        # Calculate distance between bots
+        print("  Calculating distance between bots...")
+        dist_between = calculate_distance_between_bots(df)
+
+        # Calculate distance from center for each bot
+        print("  Calculating distance from center...")
+        df_with_center_dist = calculate_distance_from_center(df)
+
+        # Split by actor - bot1 is actor 0, bot2 is actor 1
+        bot1_center_dist = df_with_center_dist.filter(pl.col("Actor").cast(pl.Int64) == 0)["DistanceFromCenter"]
+        bot2_center_dist = df_with_center_dist.filter(pl.col("Actor").cast(pl.Int64) == 1)["DistanceFromCenter"]
+
+        # Store data for each bot
+        if bot1_name not in bot_distance_data:
+            bot_distance_data[bot1_name] = {"between": [], "from_center": []}
+        if bot2_name not in bot_distance_data:
+            bot_distance_data[bot2_name] = {"between": [], "from_center": []}
+
+        # Add distance between for both bots (it's the same data)
+        bot_distance_data[bot1_name]["between"].append(dist_between["Distance"])
+        bot_distance_data[bot2_name]["between"].append(dist_between["Distance"])
+
+        # Add distance from center for each bot
+        bot_distance_data[bot1_name]["from_center"].append(bot1_center_dist)
+        bot_distance_data[bot2_name]["from_center"].append(bot2_center_dist)
+
+    # Create distance distribution plot for each bot
+    for bot_name, data in bot_distance_data.items():
+        print("\n" + "=" * 60)
+        print(f"Creating distance distribution for {bot_name}...")
+        print("=" * 60)
+
+        # Concatenate all data for this bot
+        combined_between = pl.concat(data["between"])
+        combined_from_center = pl.concat(data["from_center"])
+
+        between_numpy = combined_between.to_numpy()
+        from_center_numpy = combined_from_center.to_numpy()
+
+        # Create 2-subplot figure
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+
+        # Plot 1: Distance between bots (averaged across all matchups)
+        ax1.hist(between_numpy, bins=30, color='steelblue', edgecolor='black', alpha=0.7)
+        ax1.set_title(f"Distance Between {bot_name} and Opponents (All Matchups)", fontsize=14, fontweight='bold')
+        ax1.set_xlabel("Distance Between Bots", fontsize=12)
+        ax1.set_ylabel("Frequency", fontsize=12)
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        ax1.text(0.98, 0.98, f"n={len(between_numpy):,}",
+                transform=ax1.transAxes, ha='right', va='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # Plot 2: Distance from center
+        ax2.hist(from_center_numpy, bins=30, color='green', edgecolor='black', alpha=0.7)
+        ax2.set_title(f"Distance from Center: {bot_name}", fontsize=14, fontweight='bold')
+        ax2.set_xlabel("Distance from Center", fontsize=12)
+        ax2.set_ylabel("Frequency", fontsize=12)
+        ax2.grid(True, alpha=0.3, linestyle='--')
+
+        # Add arena radius reference line
+        ax2.axvline(x=arena_radius, color='red', linestyle='--', linewidth=2,
+                   label=f'Arena Radius ({arena_radius:.2f})', alpha=0.8)
+        ax2.legend(loc='upper right', fontsize=10)
+
+        ax2.text(0.98, 0.98, f"n={len(from_center_numpy):,}",
+                transform=ax2.transAxes, ha='right', va='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        plt.tight_layout()
+
+        # Save to bot's folder
+        bot_output_dir = os.path.join(output_dir, bot_name)
+        os.makedirs(bot_output_dir, exist_ok=True)
+        output_path = os.path.join(bot_output_dir, "distance_distribution.png")
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"  Saved to {output_path}")
+        plt.close(fig)
+
     print("\n" + "=" * 60)
     print(f"✅ Completed! All visualizations saved to: {output_dir}")
     print("=" * 60)
@@ -1951,7 +2069,7 @@ Examples:
 
         base_output = args.output
 
-        # Generate arena heatmaps, position distributions, and distance over time
+        # Generate all visualizations (heatmaps, position distributions, distance distributions)
         print("\n" + "=" * 60)
         print("Generating all visualizations...")
         print("=" * 60)
@@ -1966,18 +2084,6 @@ Examples:
             args.use_timer,
             args.use_time_windows,
             include_distance_over_time=True,  # Generate distance plots (only with --use-timer)
-            skip_initial=args.skip_initial
-        )
-
-        # Generate distance distributions for each bot
-        print("\n" + "=" * 60)
-        print("Generating distance distributions for each bot...")
-        print("=" * 60)
-        create_distance_distributions_all_matchups(
-            args.base_dir,
-            heatmap_dir,  # Save to existing arena_heatmaps folder
-            args.chunksize,
-            max_configs,
             skip_initial=args.skip_initial
         )
 

@@ -92,7 +92,8 @@ def process_batch_csvs(csv_paths, batch_checkpoint_dir="batched", time_bin_size=
         config = parse_config_name_cached(config_folder)
 
         # Scan CSV with Polars lazy API
-        lf = pl.scan_csv(csv_path)
+        # Specify schema to ensure numeric columns are read correctly
+        lf = pl.scan_csv(csv_path, infer_schema_length=10000)
 
         # Process game metrics
         game_metrics_lf = process_single_csv_lazy(
@@ -848,7 +849,7 @@ def generate():
 if __name__ == "__main__":
     import sys
 
-    base_dir = "/Users/defdef/Library/Application Support/DefaultCompany/Sumobot/Simulation"
+    base_dir = "/Users/defdef/Documents/Simulation"
     timebin_size = 5
     batch_size = 2
 
