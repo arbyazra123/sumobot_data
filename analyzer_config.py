@@ -38,6 +38,81 @@ BOT_MARKER_MAP = {
 DEFAULT_MARKER = "o"
 
 # =====================
+# Bot Linestyle Configuration (by Rank)
+# =====================
+# Map bot rank to matplotlib linestyle for performance visualization
+# Top 5 performers get solid lines, others get different styles
+BOT_LINESTYLE_BY_RANK = {
+    1: "-",      # Solid - Best performer
+    2: "--",      # Solid - 2nd best
+    3: ":",      # Solid - 3rd best
+    4: "-",      # Solid - 4th best
+    5: "-",      # Solid - 5th best
+    6: "--",     # Dashed
+    7: "--",     # Dashed
+    8: "-.",     # Dash-dot
+    9: "-.",     # Dash-dot
+    10: ":",     # Dotted
+    11: ":",     # Dotted
+    12: ":",     # Dotted
+    13: ":",     # Dotted
+}
+
+# Default linestyle if rank not in map
+DEFAULT_LINESTYLE = "-"
+
+# =====================
+# Bot Color Configuration
+# =====================
+# Map bot names to consistent colors for visualization
+# Using distinct colors for easy differentiation
+BOT_COLOR_MAP = {
+    "Bot_NN": "#1f77b4",                    # Blue - #1
+    "Bot_ML_Classification": "#ff7f0e",     # Orange - #2
+    "Bot_MCTS": "#2ca02c",                  # Green - #3
+    "Bot_FuzzyLogic": "#d62728",            # Red - #4
+    "Bot_Primitive": "#9467bd",             # Purple - #5
+    "Bot_GA": "#8c564b",                    # Brown - #6
+    "Bot_SLM_ActionGPT": "#e377c2",         # Pink - #7
+    "Bot_PPO": "#7f7f7f",                   # Gray - #8
+    "Bot_BT": "#bcbd22",                    # Olive - #9
+    "Bot_UtilityAI": "#17becf",             # Cyan - #10
+    "Bot_LLM_ActionGPT": "#aec7e8",         # Light Blue - #11
+    "Bot_FSM": "#ffbb78",                   # Light Orange - #12
+    "Bot_DQN": "#98df8a",                   # Light Green - #13
+}
+
+# Default color if bot not in map
+DEFAULT_COLOR = "#333333"
+
+# =====================
+# Theme Configuration (for non-bot visualizations)
+# =====================
+# Color palette for general charts (bars, matrices, etc.)
+# Use these when bots are NOT the primary subject
+THEME_COLORS = {
+    # Primary theme colors
+    'primary': '#2ca02c',      # Green
+    'secondary': '#1f77b4',    # Blue
+    'accent': '#ff7f0e',       # Orange
+    'danger': '#d62728',       # Red
+    'info': '#17becf',         # Cyan
+    'warning': '#bcbd22',      # Olive
+
+    # Chart-specific defaults
+    'bar_default': '#d62728',           # Green for bar charts
+    'heatmap_cmap': 'Blues',            # Colormap for heatmaps/matrices
+    'regression_line': '#d62728',       # Red for regression lines
+    'grid': '#cccccc',                  # Light gray for grids
+
+    # Multi-category palettes (when you need multiple colors for non-bot categories)
+    'categorical': ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b'],
+}
+
+# Default theme color
+DEFAULT_THEME_COLOR = THEME_COLORS['primary']
+
+# =====================
 # Metric Name Mapping
 # =====================
 # Map metric/key names to proper display names
@@ -158,3 +233,43 @@ def get_bot_marker(bot_name):
         Matplotlib marker string
     """
     return BOT_MARKER_MAP.get(bot_name, DEFAULT_MARKER)
+
+
+def get_bot_linestyle(rank):
+    """
+    Get linestyle for a given bot rank.
+    Top 5 performers get solid lines, others get varied styles.
+
+    Args:
+        rank: Bot rank (1-13)
+
+    Returns:
+        Matplotlib linestyle string
+    """
+    return BOT_LINESTYLE_BY_RANK.get(rank, DEFAULT_LINESTYLE)
+
+
+def get_bot_color(bot_name):
+    """
+    Get color for a given bot name.
+
+    Args:
+        bot_name: Name of the bot
+
+    Returns:
+        Hex color string
+    """
+    return BOT_COLOR_MAP.get(bot_name, DEFAULT_COLOR)
+
+
+def get_theme_color(theme_key):
+    """
+    Get theme color for non-bot visualizations.
+
+    Args:
+        theme_key: Key from THEME_COLORS (e.g., 'primary', 'bar_default', 'categorical')
+
+    Returns:
+        Color string or list of colors for 'categorical'
+    """
+    return THEME_COLORS.get(theme_key, DEFAULT_THEME_COLOR)

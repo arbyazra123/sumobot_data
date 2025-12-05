@@ -8,7 +8,14 @@ from reportlab.lib.pagesizes import A4
 import plotly.io as pio
 import streamlit as st
 from scipy import stats
-from analyzer_config import get_bot_marker, get_metric_name, BOT_MARKER_MAP
+from analyzer_config import (
+    get_bot_marker,
+    get_bot_color,
+    get_bot_linestyle,
+    get_theme_color,
+    get_metric_name,
+    BOT_MARKER_MAP
+)
 
 
 def calculate_legend_padding(ax, x_labels=None, rotation=0, base_padding=-0.15):
@@ -50,7 +57,7 @@ def calculate_legend_padding(ax, x_labels=None, rotation=0, base_padding=-0.15):
 
 def plot_with_bot_markers(ax, data, x, y, hue, hue_order=None, **kwargs):
     """
-    Plot line plot with bot-specific markers.
+    Plot line plot with bot-specific markers, colors, and rank-based linestyles.
 
     Args:
         ax: Matplotlib axes object
@@ -81,8 +88,25 @@ def plot_with_bot_markers(ax, data, x, y, hue, hue_order=None, **kwargs):
         # Extract original bot name (before " (#rank)" if present)
         bot_name = bot_label.split(" (")[0] if " (" in str(bot_label) else str(bot_label)
         marker = get_bot_marker(bot_name)
+        color = get_bot_color(bot_name)
 
-        ax.plot(bot_data[x], bot_data[y], marker=marker, label=bot_label, **plot_kwargs)
+        # Extract rank from label if present (format: "BotName (#rank)")
+        rank = None
+        if " (#" in str(bot_label):
+            try:
+                rank_str = str(bot_label).split(" (#")[1].rstrip(")")
+                rank = int(rank_str)
+            except (IndexError, ValueError):
+                pass
+
+        linestyle = get_bot_linestyle(rank) if rank is not None else "-"
+
+        ax.plot(bot_data[x], bot_data[y],
+                marker=marker,
+                color=color,
+                linestyle=linestyle,
+                label=bot_label,
+                **plot_kwargs)
 
 def update_bot_marker_map(new_mappings):
     """
@@ -164,7 +188,7 @@ def plot_winrate_matrix(summary, width=8, height=6):
     fig = plt.figure(figsize=(width, height))
     pivot = build_winrate_matrix(summary)
     sns.heatmap(
-        pivot, annot=True, cmap="Blues", center=0.5,
+        pivot, annot=True, cmap=get_theme_color('heatmap_cmap'), center=0.5,
         fmt=".2f", linewidths=0.5, cbar_kws={'label': 'Win Rate'}
     )
     plt.title(f"{get_metric_name('Bot')} vs {get_metric_name('Bot')} {get_metric_name('WinRate')} Matrix")
@@ -212,7 +236,11 @@ def plot_time_related(summary, width=8, height=6):
                 continue
             label = bot_data["BotWithRank"].iloc[0]
             marker = get_bot_marker(bot)
-            ax.plot(bot_data["Timer"], bot_data["AvgDuration"], marker=marker, label=label,
+            color = get_bot_color(bot)
+            rank = rank_map.get(bot)
+            linestyle = get_bot_linestyle(rank) if rank is not None else "-"
+            ax.plot(bot_data["Timer"], bot_data["AvgDuration"],
+                   marker=marker, color=color, linestyle=linestyle, label=label,
                    markersize=8, linewidth=2)
 
         ax.set_title(f"Avg {get_metric_name('MatchDur')} vs {get_metric_name('Timer')} ({get_metric_name('ActInterval')} = {interval})")
@@ -564,7 +592,7 @@ def plot_full_cross_heatmap_half(df, bot_name="Bot_NN", key="WinRate_L", max_lab
     fig, ax = plt.subplots(figsize=(max(10, len(pivot.columns)*0.4), max(8, len(pivot)*0.3)))
     sns.heatmap(
         pivot,
-        cmap="Blues",
+        cmap=get_theme_color('heatmap_cmap'),
         annot=True,
         fmt=".2f",
         # mask=mask,            # ✅ Hide upper (or lower) triangle
@@ -686,8 +714,8 @@ def plot_grouped_config_winrates(
     fig, ax = plt.subplots(figsize=(width, height))
 
     # Define colors for each config value
-    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
-    config_colors = {val: colors[i % len(colors)] for i, val in enumerate(config_values)}
+    categorical_colors = get_theme_color('categorical')
+    config_colors = {val: categorical_colors[i % len(categorical_colors)] for i, val in enumerate(config_values)}
 
     # Set up bar positions
     n_bots = len(bots)
@@ -841,7 +869,7 @@ def plot_overall_bot_metrics(
 
     # Plot bars
     x_positions = np.arange(len(bots))
-    bars = ax.bar(x_positions, means, width=0.6, color='#2ca02c', alpha=0.8, edgecolor='black', linewidth=1.2)
+    bars = ax.bar(x_positions, means, width=0.6, color=get_theme_color('bar_default'), alpha=0.8, edgecolor='black', linewidth=1.2)
 
     # Add value labels inside bars
     for bar, mean_val in zip(bars, means):
@@ -956,18 +984,21 @@ def plot_action_radar(df, bot_col="Bot_L", width=14, height=12, scale=None, radi
     fig, ax = plt.subplots(figsize=(width, height), subplot_kw=dict(projection='polar'))
 
     # Plot each bot
-    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
-    for i, (bot, values) in enumerate(bot_data.items()):
+    for bot, values in bot_data.items():
         values += values[:1]  # Complete the circle
         # Format label with rank if available
+        rank = None
         if rank_map and bot in rank_map:
-            label = f"{bot} (#{int(rank_map[bot])})"
+            rank = int(rank_map[bot])
+            label = f"{bot} (#{rank})"
         else:
             label = bot
-        # Use bot-specific marker
+        # Use bot-specific marker, color, and rank-based linestyle
         marker = get_bot_marker(bot)
-        ax.plot(angles, values, f'{marker}-', linewidth=2.5, markersize=8,
-                label=label, color=colors[i % len(colors)])
+        color = get_bot_color(bot)
+        linestyle = get_bot_linestyle(rank) if rank is not None else "-"
+        ax.plot(angles, values, marker=marker, linestyle=linestyle, linewidth=2.5, markersize=8,
+                label=label, color=color)
 
     # Set labels with better styling
     ax.set_xticks(angles[:-1])
@@ -1058,18 +1089,21 @@ def plot_collision_radar(df, bot_col="Bot_L", width=14, height=12, scale=None):
     fig, ax = plt.subplots(figsize=(width, height), subplot_kw=dict(projection='polar'))
 
     # Plot each bot
-    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#17becf', '#9467bd', '#8c564b']
-    for i, (bot, values) in enumerate(bot_data.items()):
+    for bot, values in bot_data.items():
         values += values[:1]  # Complete the circle
         # Format label with rank if available
+        rank = None
         if rank_map and bot in rank_map:
-            label = f"{bot} (#{int(rank_map[bot])})"
+            rank = int(rank_map[bot])
+            label = f"{bot} (#{rank})"
         else:
             label = bot
-        # Use bot-specific marker
+        # Use bot-specific marker, color, and rank-based linestyle
         marker = get_bot_marker(bot)
-        ax.plot(angles, values, f'{marker}-', linewidth=2.5, markersize=8,
-                label=label, color=colors[i % len(colors)])
+        color = get_bot_color(bot)
+        linestyle = get_bot_linestyle(rank) if rank is not None else "-"
+        ax.plot(angles, values, marker=marker, linestyle=linestyle, linewidth=2.5, markersize=8,
+                label=label, color=color)
 
     # Set labels with better styling
     ax.set_xticks(angles[:-1])
@@ -1155,14 +1189,10 @@ def plot_action_distribution_stacked(df, bot_col="Bot_L", width=10, height=6, no
     # Create stacked bar chart
     fig, ax = plt.subplots(figsize=(width, height))
 
-    # Define colors for each action type
-    colors = {
-        'Accelerate': '#d62728',    # Red
-        'TurnLeft': '#ff7f0e',      # Orange
-        'TurnRight': '#2ca02c',     # Green
-        'Dash': '#17becf',          # Cyan
-        'Skill': '#1f77b4'          # Blue
-    }
+    # Define colors for each action type using theme colors
+    categorical_colors = get_theme_color('categorical')
+    action_types = ['Accelerate', 'TurnLeft', 'TurnRight', 'Dash', 'Skill']
+    colors = {action: categorical_colors[i % len(categorical_colors)] for i, action in enumerate(action_types)}
 
     # Create bot labels with rank
     if rank_map:
@@ -1259,11 +1289,11 @@ def plot_collision_distribution_stacked(df, bot_col="Bot_L", width=10, height=6,
     # Create stacked bar chart
     fig, ax = plt.subplots(figsize=(width, height))
 
-    # Define colors for each collision type
+    # Define colors for each collision type using theme colors
     colors = {
-        'Hit': '#2ca02c',         # Green (wins)
-        'Struck': '#d62728',   # Red (losses)
-        'Tie': '#ff7f0e'          # Orange (ties)
+        'Hit': get_theme_color('primary'),      # Green (wins)
+        'Struck': get_theme_color('danger'),    # Red (losses)
+        'Tie': get_theme_color('accent')        # Orange (ties)
     }
 
     # Create bot labels with rank
@@ -1573,19 +1603,9 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
     # Create figure
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Add jitter for discrete variables to spread out points
+    # No jitter - use original x values
     x_values = plot_data[x_col].values.copy()
-    if add_jitter:
-        unique_vals = np.unique(x_values)
-        if len(unique_vals) <= 5:  # Discrete variable
-            x_range = x_values.max() - x_values.min()
-            jitter_amount = x_range * 0.02 if x_range > 0 else 0.01
-            x_jittered = x_values + np.random.normal(0, jitter_amount, size=len(x_values))
-            plot_data['x_jittered'] = x_jittered
-        else:
-            plot_data['x_jittered'] = x_values
-    else:
-        plot_data['x_jittered'] = x_values
+    plot_data['x_jittered'] = x_values
 
     # Get bot rankings if available
     rank_map = {}
@@ -1600,13 +1620,13 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
             unique_values = sorted(unique_values, key=lambda v: rank_map.get(v, 999))
         else:
             unique_values = sorted(unique_values)
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_values)))
 
         for idx, value in enumerate(unique_values):
             mask = plot_data[color_by] == value
 
-            # Get bot marker
+            # Get bot marker and color
             marker = get_bot_marker(value) if color_by == 'Bot' else 'o'
+            color = get_bot_color(value) if color_by == 'Bot' else plt.cm.tab10(idx / len(unique_values))
 
             # Create label with rank if available
             if rank_map and value in rank_map:
@@ -1615,7 +1635,7 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
                 label = value
 
             ax.scatter(plot_data[mask]['x_jittered'], plot_data[mask][y_col],
-                      label=label, alpha=alpha, s=60, color=colors[idx],
+                      label=label, alpha=alpha, s=60, color=color,
                       marker=marker, edgecolors='black', linewidth=0.5)
 
             # Add per-bot regression line if requested
@@ -1626,7 +1646,12 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
                     bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                     bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                     bot_y_line = bot_slope * bot_x_line + bot_intercept
-                    ax.plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=colors[idx], alpha=0.7)
+
+                    # Clip regression line to valid range [0, 1] for WinRate
+                    if y_col == 'WinRate' or 'WinRate' in y_col:
+                        bot_y_line = np.clip(bot_y_line, 0, 1)
+
+                    ax.plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=color, alpha=0.7)
     else:
         ax.scatter(plot_data['x_jittered'], plot_data[y_col], alpha=alpha, s=60,
                   edgecolors='black', linewidth=0.5)
@@ -1635,7 +1660,12 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
     slope, intercept = np.polyfit(x_values, plot_data[y_col], 1)
     x_line = np.linspace(x_values.min(), x_values.max(), 100)
     y_line = slope * x_line + intercept
-    ax.plot(x_line, y_line, 'r-', linewidth=2.5, label=f'Overall Regression')
+
+    # Clip regression line to valid range [0, 1] for WinRate
+    if y_col == 'WinRate' or 'WinRate' in y_col:
+        y_line = np.clip(y_line, 0, 1)
+
+    ax.plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5, label=f'Overall Regression')
 
     # Add correlation info to plot
     corr_text = f'Pearson r = {pearson_r:.3f}\np-value = {pearson_p:.3e}\nn = {len(plot_data)}'
@@ -1834,11 +1864,11 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         if rank_map:
             # Sort bots by rank
             unique_bots = sorted(unique_bots, key=lambda b: rank_map.get(b, 999))
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_bots)))
 
-        for bot_idx, bot in enumerate(unique_bots):
+        for bot in unique_bots:
             mask = plot_data['Bot'] == bot
             marker = get_bot_marker(bot)
+            color = get_bot_color(bot)
 
             # Create label with rank if available
             if rank_map and bot in rank_map:
@@ -1847,7 +1877,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 label = bot
 
             axes[idx].scatter(plot_data[mask][action], plot_data[mask]['WinRate'],
-                            label=label, alpha=alpha, s=30, color=colors[bot_idx],
+                            label=label, alpha=alpha, s=30, color=color,
                             marker=marker, edgecolors='black', linewidth=0.5)
 
             # Per-bot regression line
@@ -1857,13 +1887,17 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                 bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                 bot_y_line = bot_slope * bot_x_line + bot_intercept
-                axes[idx].plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=colors[bot_idx], alpha=0.7)
+                # Clip to valid WinRate range [0, 1]
+                bot_y_line = np.clip(bot_y_line, 0, 1)
+                axes[idx].plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=color, alpha=0.7)
 
         # Overall regression line
         slope, intercept = np.polyfit(plot_data[action], plot_data['WinRate'], 1)
         x_line = np.linspace(plot_data[action].min(), plot_data[action].max(), 100)
         y_line = slope * x_line + intercept
-        axes[idx].plot(x_line, y_line, 'r-', linewidth=2.5)
+        # Clip to valid WinRate range [0, 1]
+        y_line = np.clip(y_line, 0, 1)
+        axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5)
 
         # Correlation info
         corr_text = f'r={pearson_r:.3f}\np={pearson_p:.2e}'
@@ -1928,11 +1962,11 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         if rank_map:
             # Sort bots by rank
             unique_bots = sorted(unique_bots, key=lambda b: rank_map.get(b, 999))
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_bots)))
 
-        for bot_idx, bot in enumerate(unique_bots):
+        for bot in unique_bots:
             mask = plot_data['Bot'] == bot
             marker = get_bot_marker(bot)
+            color = get_bot_color(bot)
 
             # Create label with rank if available
             if rank_map and bot in rank_map:
@@ -1941,7 +1975,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 label = bot
 
             axes[idx].scatter(plot_data[mask][action], plot_data[mask]['WinRate'],
-                            label=label, alpha=alpha, s=30, color=colors[bot_idx],
+                            label=label, alpha=alpha, s=30, color=color,
                             marker=marker, edgecolors='black', linewidth=0.5)
 
             # Per-bot regression line
@@ -1951,13 +1985,17 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                 bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                 bot_y_line = bot_slope * bot_x_line + bot_intercept
-                axes[idx].plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=colors[bot_idx], alpha=0.7)
+                # Clip to valid WinRate range [0, 1]
+                bot_y_line = np.clip(bot_y_line, 0, 1)
+                axes[idx].plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=color, alpha=0.7)
 
         # Overall regression line
         slope, intercept = np.polyfit(plot_data[action], plot_data['WinRate'], 1)
         x_line = np.linspace(plot_data[action].min(), plot_data[action].max(), 100)
         y_line = slope * x_line + intercept
-        axes[idx].plot(x_line, y_line, 'r-', linewidth=2.5)
+        # Clip to valid WinRate range [0, 1]
+        y_line = np.clip(y_line, 0, 1)
+        axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5)
 
         # Correlation info
         corr_text = f'r={pearson_r:.3f}\np={pearson_p:.2e}'
@@ -2023,12 +2061,12 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
             unique_bots = sorted(unique_bots, key=lambda b: rank_map.get(b, 999))
         else:
             unique_bots = sorted(unique_bots)
-        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_bots)))
 
         # Scatter plot colored by bot
-        for bot_idx, bot in enumerate(unique_bots):
+        for bot in unique_bots:
             bot_data = plot_data[plot_data['Bot'] == bot]
             marker = get_bot_marker(bot)
+            color = get_bot_color(bot)
 
             # Create label with rank if available
             if rank_map and bot in rank_map:
@@ -2037,7 +2075,7 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 label = bot
 
             axes[idx].scatter(bot_data[col_type], bot_data['WinRate'],
-                            alpha=alpha, s=60, color=colors[bot_idx], marker=marker,
+                            alpha=alpha, s=60, color=color, marker=marker,
                             label=label, edgecolors='black', linewidth=0.5)
 
         # Overall regression line
@@ -2045,7 +2083,9 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
             slope, intercept = np.polyfit(plot_data[col_type], plot_data['WinRate'], 1)
             x_line = np.linspace(plot_data[col_type].min(), plot_data[col_type].max(), 100)
             y_line = slope * x_line + intercept
-            axes[idx].plot(x_line, y_line, 'r-', linewidth=2.5, label='Overall Regression')
+            # Clip to valid WinRate range [0, 1]
+            y_line = np.clip(y_line, 0, 1)
+            axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5, label='Overall Regression')
 
         # Correlation info
         corr_text = f'r={pearson_r:.3f}\np={pearson_p:.2e}'

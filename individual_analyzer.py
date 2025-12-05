@@ -1,10 +1,15 @@
-import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from scipy import stats
-from analyzer_config import get_bot_marker, get_metric_name
+from analyzer_config import (
+    get_bot_marker,
+    get_bot_color,
+    get_bot_linestyle,
+    get_theme_color,
+    get_metric_name
+)
 
 
 def calculate_legend_padding(ax, x_labels=None, rotation=0, base_padding=-0.15):
@@ -106,9 +111,8 @@ def plot_grouped(summary, key="WinRate", group_by="ActInterval", width=10, heigh
     if chart_type == "line":
         # --- Line chart with error bands ---
         x_values = sorted(grouped[group_by].unique())
-        colors = plt.cm.tab10(np.linspace(0, 1, len(bot_order)))
 
-        for i, bot in enumerate(bot_order):
+        for bot in bot_order:
             bot_data = grouped[grouped["Bot"] == bot].sort_values(group_by)
             rank = int(bot_data["Rank"].iloc[0])
 
@@ -141,10 +145,12 @@ def plot_grouped(summary, key="WinRate", group_by="ActInterval", width=10, heigh
             means = np.array(means)
             errors = np.array(errors)
 
-            # Plot line with thicker style and bot-specific marker
+            # Plot line with bot-specific marker, color, and rank-based linestyle
             marker = get_bot_marker(bot)
-            ax.plot(x_values, means, marker=marker, linestyle='-', linewidth=2.5, markersize=7,
-                   label=f"{bot} (#{rank})", color=colors[i])
+            color = get_bot_color(bot)
+            linestyle = get_bot_linestyle(rank)
+            ax.plot(x_values, means, marker=marker, linestyle=linestyle, linewidth=2.5, markersize=7,
+                   label=f"{bot} (#{rank})", color=color)
 
             # Plot error band with lighter transparency
             # ax.fill_between(x_values, means - errors, means + errors,
@@ -271,7 +277,7 @@ def prepare_individual_bot_data(df, bot_name):
 
 
 def plot_individual_correlation_scatter(data, x_col, y_col, title, bot_name,
-                                       alpha=0.95, figsize=(10, 8), add_jitter=False):
+                                       alpha=0.95, figsize=(10, 8)):
     """
     Create scatter plot with regression line and Pearson correlation for individual bot.
 
@@ -283,7 +289,6 @@ def plot_individual_correlation_scatter(data, x_col, y_col, title, bot_name,
         bot_name: Name of the bot
         alpha: Transparency of scatter points
         figsize: Figure size tuple
-        add_jitter: If True, add jitter to x-axis for discrete variables
 
     Returns:
         matplotlib figure
@@ -300,29 +305,22 @@ def plot_individual_correlation_scatter(data, x_col, y_col, title, bot_name,
     # Create figure
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Add jitter for discrete variables to spread out points
+    # Use original x values
     x_values = plot_data[x_col].values.copy()
-    if add_jitter:
-        # Determine jitter amount based on the range of x values
-        unique_vals = np.unique(x_values)
-        if len(unique_vals) <= 5:  # Discrete variable
-            x_range = x_values.max() - x_values.min()
-            jitter_amount = x_range * 0.02 if x_range > 0 else 0.01
-            x_jittered = x_values + np.random.normal(0, jitter_amount, size=len(x_values))
-        else:
-            x_jittered = x_values
-    else:
-        x_jittered = x_values
 
-    # Scatter plot with jittered x values
-    ax.scatter(x_jittered, plot_data[y_col],
-              alpha=alpha, s=60, color='steelblue', edgecolors='black', linewidth=0.5)
+    # Scatter plot - use bot color
+    bot_color = get_bot_color(bot_name)
+    ax.scatter(x_values, plot_data[y_col],
+              alpha=alpha, s=60, color=bot_color, edgecolors='black', linewidth=0.5)
 
-    # Add regression line (using original non-jittered data)
+    # Add regression line (using original non-jittered data) - use theme color
     slope, intercept = np.polyfit(x_values, plot_data[y_col], 1)
     x_line = np.linspace(x_values.min(), x_values.max(), 100)
     y_line = slope * x_line + intercept
-    ax.plot(x_line, y_line, 'r-', linewidth=2.5, label=f'Regression Line')
+    # Clip to valid WinRate range [0, 1]
+    if y_col == 'WinRate' or 'WinRate' in y_col:
+        y_line = np.clip(y_line, 0, 1)
+    ax.plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5, label=f'Regression Line')
 
     # Add correlation info to plot
     corr_text = f'Pearson r = {pearson_r:.3f}\np-value = {pearson_p:.3e}\nn = {len(plot_data)}'
@@ -443,16 +441,19 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         # Calculate Pearson correlation
         pearson_r, pearson_p = stats.pearsonr(plot_data[action], plot_data['WinRate'])
 
-        # Scatter plot
+        # Scatter plot - use bot color
+        bot_color = get_bot_color(bot_name)
         axes[idx].scatter(plot_data[action], plot_data['WinRate'],
-                        alpha=alpha, s=50, color='steelblue', edgecolors='black', linewidth=0.5)
+                        alpha=alpha, s=50, color=bot_color, edgecolors='black', linewidth=0.5)
 
-        # Regression line
+        # Regression line - use theme color
         if len(plot_data) >= 2 and plot_data[action].std() > 0:
             slope, intercept = np.polyfit(plot_data[action], plot_data['WinRate'], 1)
             x_line = np.linspace(plot_data[action].min(), plot_data[action].max(), 100)
             y_line = slope * x_line + intercept
-            axes[idx].plot(x_line, y_line, 'r-', linewidth=2)
+            # Clip to valid WinRate range [0, 1]
+            y_line = np.clip(y_line, 0, 1)
+            axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2)
 
         # Correlation info
         corr_text = f'r={pearson_r:.3f}\np={pearson_p:.2e}'
@@ -490,16 +491,19 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         # Calculate Pearson correlation
         pearson_r, pearson_p = stats.pearsonr(plot_data[action], plot_data['WinRate'])
 
-        # Scatter plot
+        # Scatter plot - use bot color
+        bot_color = get_bot_color(bot_name)
         axes[idx].scatter(plot_data[action], plot_data['WinRate'],
-                        alpha=alpha, s=50, color='steelblue', edgecolors='black', linewidth=0.5)
+                        alpha=alpha, s=50, color=bot_color, edgecolors='black', linewidth=0.5)
 
-        # Regression line
+        # Regression line - use theme color
         if len(plot_data) >= 2 and plot_data[action].std() > 0:
             slope, intercept = np.polyfit(plot_data[action], plot_data['WinRate'], 1)
             x_line = np.linspace(plot_data[action].min(), plot_data[action].max(), 100)
             y_line = slope * x_line + intercept
-            axes[idx].plot(x_line, y_line, 'r-', linewidth=2)
+            # Clip to valid WinRate range [0, 1]
+            y_line = np.clip(y_line, 0, 1)
+            axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2)
 
         # Correlation info
         corr_text = f'r={pearson_r:.3f}\np={pearson_p:.2e}'
@@ -537,16 +541,19 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         # Calculate Pearson correlation
         pearson_r, pearson_p = stats.pearsonr(plot_data[col_type], plot_data['WinRate'])
 
-        # Scatter plot
+        # Scatter plot - use bot color
+        bot_color = get_bot_color(bot_name)
         axes[idx].scatter(plot_data[col_type], plot_data['WinRate'],
-                        alpha=alpha, s=60, color='steelblue', edgecolors='black', linewidth=0.5)
+                        alpha=alpha, s=60, color=bot_color, edgecolors='black', linewidth=0.5)
 
-        # Regression line
+        # Regression line - use theme color
         if len(plot_data) >= 2 and plot_data[col_type].std() > 0:
             slope, intercept = np.polyfit(plot_data[col_type], plot_data['WinRate'], 1)
             x_line = np.linspace(plot_data[col_type].min(), plot_data[col_type].max(), 100)
             y_line = slope * x_line + intercept
-            axes[idx].plot(x_line, y_line, 'r-', linewidth=2.5)
+            # Clip to valid WinRate range [0, 1]
+            y_line = np.clip(y_line, 0, 1)
+            axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5)
 
         # Correlation info
         corr_text = f'r={pearson_r:.3f}\np={pearson_p:.2e}'
