@@ -658,7 +658,8 @@ def plot_grouped_config_winrates(
         rank_map = {}
 
     # Determine if we need to calculate per-game averages
-    per_game_metrics = ["Collisions", "ActionCounts", "Duration", "MatchDur"]
+    # Note: MatchDur is already averaged in summary_matchup.csv, so don't divide by Games again
+    per_game_metrics = ["Collisions", "ActionCounts", "Duration"]
     needs_per_game = any(m in metric for m in per_game_metrics)
 
     # Special handling for "Skill" - use both SkillLeft and SkillRight
@@ -841,7 +842,8 @@ def plot_overall_bot_metrics(
         rank_map = {}
 
     # Determine if we need to calculate per-game averages
-    per_game_metrics = ["Collisions", "ActionCounts", "Duration", "MatchDur"]
+    # Note: MatchDur is already averaged in summary_matchup.csv, so don't divide by Games again
+    per_game_metrics = ["Collisions", "ActionCounts", "Duration"]
     needs_per_game = any(m in metric for m in per_game_metrics)
 
     if needs_per_game:
