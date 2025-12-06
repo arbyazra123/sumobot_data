@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from scipy import stats
-from plotting.analyzer_config import (
+from analyzer_config import (
     get_bot_marker,
     get_bot_color,
     get_bot_linestyle,
@@ -266,7 +266,7 @@ def prepare_individual_bot_data(df, bot_name):
     bot_data = pd.concat([df_left, df_right], ignore_index=True)
 
     # Add derived columns
-    bot_data['RoundNumeric'] = bot_data['Round'].map({'BestOf1': 1, 'BestOf3': 3})
+    bot_data['RoundNumeric'] = bot_data['Round'].str.extract(r'(\d+)$').astype(int)
     bot_data['TotalSkillAct'] = bot_data['SkillBoost_Act'] + bot_data['SkillStone_Act']
 
     # Encode SkillType as numeric for correlation

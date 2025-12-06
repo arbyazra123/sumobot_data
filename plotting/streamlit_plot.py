@@ -1,14 +1,14 @@
 from streamlit_modal import Modal
 import pandas as pd
 import streamlit as st
-from plotting.stoc import stoc
+from stoc import stoc
 import os
 
-from plotting.overall_analyzer import (
+from overall_analyzer import (
     show_overall_analysis,
 )
 
-from plotting.individual_analyzer import (
+from individual_analyzer import (
     show_individual_report
 )
 
