@@ -638,7 +638,7 @@ def generate_timebins_from_batches(checkpoint_dir, output_dir):
         print(f"Loaded {len(action_timebin_df):,} action timebin records")
 
         print("\n Creating action time-bin summary...")
-        summarize_action_timebins(action_timebin_df)
+        summarize_action_timebins(action_timebin_df, output_dir)
 
     # Load collision timebin batches
     collision_batch_files = sorted(glob.glob(f"{checkpoint_dir}/collision_timebins/batch_*.csv"))
@@ -649,7 +649,7 @@ def generate_timebins_from_batches(checkpoint_dir, output_dir):
         print(f"Loaded {len(collision_timebin_df):,} collision timebin records")
 
         print("\n Creating collision time-bin summary...")
-        summarize_collision_timebins(collision_timebin_df)
+        summarize_collision_timebins(collision_timebin_df, output_dir)
 
     print("\n" + "=" * 60)
     print("🎉 Done! Created:")
@@ -751,7 +751,7 @@ def compute_collision_time_bins_from_csvs(base_dir, time_bin_size=5):
     return collision_fragment_df
 
 
-def summarize_action_timebins(time_fragment_df):
+def summarize_action_timebins(time_fragment_df, output_dir):
     """
     Summarize action time fragment data with GPU acceleration.
     Computes mean counts per bot/config/timebin/action.
@@ -768,13 +768,13 @@ def summarize_action_timebins(time_fragment_df):
     summary = collect_with_gpu(summary_lazy)
 
     # Save CSV
-    summary.write_csv("summary_action_timebins.csv")
-    print("Saved summary_action_timebins.csv")
+    summary.write_csv(f"{output_dir}/summary_action_timebins.csv")
+    print(f"Saved {output_dir}/summary_action_timebins.csv")
 
     return summary
 
 
-def summarize_collision_timebins(collision_fragment_df):
+def summarize_collision_timebins(collision_fragment_df, output_dir):
     """
     Calculate collision time fragment data with GPU acceleration.
     Aggregates Actor, Target, Tie counts per config/timebin.
@@ -793,8 +793,8 @@ def summarize_collision_timebins(collision_fragment_df):
     summary = collect_with_gpu(summary_lazy)
 
     # Save CSV
-    summary.write_csv("summary_collision_timebins.csv")
-    print("Saved summary_collision_timebins.csv")
+    summary.write_csv(f"{output_dir}/summary_collision_timebins.csv")
+    print(f"Saved {output_dir}/summary_collision_timebins.csv")
 
     return summary
 
