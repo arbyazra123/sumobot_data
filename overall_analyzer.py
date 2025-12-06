@@ -80,7 +80,8 @@ def plot_with_bot_markers(ax, data, x, y, hue, hue_order=None, **kwargs):
     # Determine which bots to plot
     bots_to_plot = hue_order if hue_order else data[hue].unique()
 
-    for bot_label in bots_to_plot:
+    # Plot in reverse order so top-ranked bots (solid lines) appear on top
+    for bot_label in reversed(list(bots_to_plot)):
         bot_data = data[data[hue] == bot_label]
         if bot_data.empty:
             continue
@@ -380,7 +381,7 @@ def plot_win_rate_stability_over_timer(summary, width=8, height=6):
     plt.ylabel("Bot")
     return fig
 
-def plot_timebins_intensity(
+def plot_action_timebins_intensity(
     df,
     group_by="Bot",
     timer=None,
@@ -2264,18 +2265,18 @@ def show_overall_analysis(df,filters,df_timebins, df_collision_timebins,toc,widt
         for actI in filters["ActInterval"]:
 
             toc.h3(f"Action intensity over Timer={timI}, ActionInterval={actI}")
-            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
+            fig = plot_action_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="total", summary_df=df)
             st.pyplot(fig)
 
-            fig = plot_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="per_action", summary_df=df)
+            fig = plot_action_timebins_intensity(df_timebins, timer=timI, act_interval=actI, mode="per_action", summary_df=df)
             st.pyplot(fig)
 
     
     toc.h3(f"Action intensity over All Configuration")
-    fig = plot_timebins_intensity(df_timebins, mode="total", timer=60, summary_df=df)
+    fig = plot_action_timebins_intensity(df_timebins, mode="total", timer=60, summary_df=df)
     st.pyplot(fig)
 
-    fig = plot_timebins_intensity(df_timebins, mode="per_action", timer=60, summary_df=df)
+    fig = plot_action_timebins_intensity(df_timebins, mode="per_action", timer=60, summary_df=df)
     st.pyplot(fig)
 
     for timI in filters["Timer"]:
