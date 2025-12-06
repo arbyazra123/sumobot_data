@@ -1588,7 +1588,7 @@ def prepare_correlation_data(df):
     df_combined = pd.concat([df_left, df_right], ignore_index=True)
 
     # Add derived columns
-    df_combined['RoundNumeric'] = df_combined['Round'].map({'BestOf1': 1, 'BestOf3': 3})
+    df_combined['RoundNumeric'] = df_combined['Round'].str.extract(r'(\d+)$').astype(int)
     df_combined['TotalSkillAct'] = df_combined['SkillBoost_Act'] + df_combined['SkillStone_Act']
 
     return df_combined
