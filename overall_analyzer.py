@@ -102,12 +102,24 @@ def plot_with_bot_markers(ax, data, x, y, hue, hue_order=None, **kwargs):
 
         linestyle = get_bot_linestyle(rank) if rank is not None else "-"
 
+        # Adjust linewidth and alpha based on rank
+        # Top 5: thicker lines (3.5), full opacity (1.0)
+        # Rank 6+: thinner lines (2.0), semi-transparent (0.3)
+        line_kwargs = plot_kwargs.copy()
+        if rank is not None:
+            if rank <= 5:
+                line_kwargs['linewidth'] = 3.5
+                line_kwargs['alpha'] = 1.0
+            else:
+                line_kwargs['linewidth'] = 2.0
+                line_kwargs['alpha'] = 0.3
+
         ax.plot(bot_data[x], bot_data[y],
                 marker=marker,
                 color=color,
                 linestyle=linestyle,
                 label=bot_label,
-                **plot_kwargs)
+                **line_kwargs)
 
 def update_bot_marker_map(new_mappings):
     """
