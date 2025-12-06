@@ -333,13 +333,17 @@ def plot_highest_action(summary, width=8, height=6, n_action = 6):
     if rank_map:
         top_actions["BotWithRank"] = top_actions["Bot_L"].map(lambda b: f"{b} (#{int(rank_map.get(b, 999))})")
 
+    # Create custom color palette using bot colors
+    bot_colors = [get_bot_color(bot) for bot in bot_order]
+
     fig = plt.figure(figsize=(width,height))
     sns.barplot(
         data=top_actions,
         x="Count",
         y="Action",
         hue=hue_col,
-        hue_order=hue_order
+        hue_order=hue_order,
+        palette=bot_colors
     )
     plt.title("Top 3 Actions Taken per Bot")
     plt.xlabel("Action Count")
@@ -862,16 +866,19 @@ def plot_overall_bot_metrics(
 
     # Prepare data for plotting
     means = []
+    colors = []
     for bot in bots:
         bot_data = grouped[grouped[bot_col] == bot]
         if not bot_data.empty:
             means.append(bot_data['mean_value'].values[0])
         else:
             means.append(0)
+        # Get bot-specific color
+        colors.append(get_bot_color(bot))
 
-    # Plot bars
+    # Plot bars with bot-specific colors
     x_positions = np.arange(len(bots))
-    bars = ax.bar(x_positions, means, width=0.6, color=get_theme_color('bar_default'), alpha=0.8, edgecolor='black', linewidth=1.2)
+    bars = ax.bar(x_positions, means, width=0.6, color=colors, alpha=0.8, edgecolor='black', linewidth=1.2)
 
     # Add value labels inside bars
     for bar, mean_val in zip(bars, means):

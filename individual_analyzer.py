@@ -370,7 +370,6 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         title='Win Rate vs Action Interval',
         bot_name=bot_name,
         figsize=(width, height),
-        add_jitter=False
     )
     if fig:
         figs['actinterval'] = fig
@@ -389,7 +388,6 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         title=round_title,
         bot_name=bot_name,
         figsize=(width, height),
-        add_jitter=False
     )
     if fig:
         figs['roundtype'] = fig
@@ -402,7 +400,6 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         title='Win Rate vs Timer Duration',
         bot_name=bot_name,
         figsize=(width, height),
-        add_jitter=False
     )
     if fig:
         figs['timer'] = fig
@@ -415,7 +412,6 @@ def plot_individual_bot_correlations(df, bot_name, width=10, height=8,alpha=0.2)
         title='Win Rate vs Skill Type (1=Stone, 2=Boost)',
         bot_name=bot_name,
         figsize=(width, height),
-        add_jitter=False
     )
     if fig:
         figs['skilltype'] = fig
