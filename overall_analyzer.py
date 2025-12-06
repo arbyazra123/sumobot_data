@@ -252,8 +252,14 @@ def plot_time_related(summary, width=8, height=6):
 
         # Calculate dynamic padding for legend
         legend_padding = calculate_legend_padding(ax, rotation=0)
-        ax.legend(title='Bot (Rank)', loc='upper center', bbox_to_anchor=(0.5, legend_padding), ncol=3,
-                 framealpha=0.9, markerscale=1.2)
+
+        # Get handles and labels, then reorder them to match bot_order_with_rank
+        handles, labels = ax.get_legend_handles_labels()
+        label_to_handle = dict(zip(labels, handles))
+        ordered_handles = [label_to_handle[bot] for bot in bot_order_with_rank if bot in label_to_handle]
+
+        ax.legend(ordered_handles, bot_order_with_rank, title='Bot (Rank)', loc='upper center',
+                 bbox_to_anchor=(0.5, legend_padding), ncol=3, framealpha=0.9, markerscale=1.2)
         ax.grid(True, linestyle="--", alpha=0.5)
 
         unique_timers = sorted(subset["Timer"].unique())
