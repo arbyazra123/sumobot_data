@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from scipy import stats
-from analyzer_config import (
+from .analyzer_config import (
     get_bot_marker,
     get_bot_color,
     get_bot_linestyle,

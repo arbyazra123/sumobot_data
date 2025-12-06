@@ -468,7 +468,7 @@ def batch_process_csvs(base_dir, batch_size=50, checkpoint_dir="batched", time_b
                 print(f"Saved collision timebin batch: {collision_path}")
 
 
-def create_summary_matchup(all_games):
+def create_summary_matchup(all_games, output_dir):
     """Create matchup summary using Polars with GPU acceleration"""
     group_cols = ["Bot_L", "Bot_R", "Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
 
@@ -545,13 +545,13 @@ def create_summary_matchup(all_games):
     matchup_summary = collect_with_gpu(matchup_summary_lazy)
 
     # Save to CSV
-    matchup_summary.write_csv("summary_matchup.csv")
-    print("Saved summary_matchup.csv")
+    matchup_summary.write_csv(f"{output_dir}/summary_matchup.csv")
+    print(f"Saved {output_dir}/summary_matchup.csv")
 
     return matchup_summary
 
 
-def create_summary_bot(matchup_summary):
+def create_summary_bot(matchup_summary, output_dir):
     """Create bot summary using Polars with GPU acceleration"""
 
     # Use lazy frames for GPU acceleration
@@ -614,13 +614,13 @@ def create_summary_bot(matchup_summary):
     bot_summary = collect_with_gpu(bot_summary_lazy)
 
     # Save
-    bot_summary.write_csv("summary_bot.csv")
-    print("Saved summary_bot.csv")
+    bot_summary.write_csv(f"{output_dir}/summary_bot.csv")
+    print(f"Saved {output_dir}/summary_bot.csv")
 
     return bot_summary
 
 
-def generate_timebins_from_batches(checkpoint_dir):
+def generate_timebins_from_batches(checkpoint_dir, output_dir):
     """
     Generate timebin summaries from batched timebin checkpoints
     Loads batch files and creates final summaries
@@ -799,7 +799,7 @@ def summarize_collision_timebins(collision_fragment_df):
     return summary
 
 
-def generate(checkpoint_dir):
+def generate(checkpoint_dir, output_dir):
     """
     Generate summary files from batched checkpoints
     Similar to generator.py generate() function
@@ -832,10 +832,10 @@ def generate(checkpoint_dir):
 
     # Create summaries with Polars
     print("\n Creating matchup summary...")
-    matchup_summary = create_summary_matchup(all_games)
+    matchup_summary = create_summary_matchup(all_games, output_dir)
 
     print("\n Creating bot summary...")
-    bot_summary = create_summary_bot(matchup_summary)
+    bot_summary = create_summary_bot(matchup_summary, output_dir)
 
     print("\n" + "=" * 60)
     print("🎉 Done! Created:")
@@ -850,6 +850,8 @@ if __name__ == "__main__":
     import sys
 
     base_dir = "/Users/defdef/Documents/Simulation"
+    checkpoint_dir = "batched"
+    output_dir = "result"
     timebin_size = 5
     batch_size = 2
 
@@ -860,20 +862,20 @@ if __name__ == "__main__":
         is_valid_process = True
         if command == "batch":
             # Batch processing mode - only game metrics
-            batch_process_csvs(base_dir, batch_size=batch_size, compute_timebins=False)
+            batch_process_csvs(base_dir, batch_size=batch_size, compute_timebins=False,checkpoint_dir=checkpoint_dir)
 
         elif command == "batch_with_timebins":
             # Batch processing mode - with timebins
             batch_process_csvs(base_dir, batch_size=batch_size,
-                             time_bin_size=timebin_size, compute_timebins=True)
+                             time_bin_size=timebin_size, compute_timebins=True,checkpoint_dir=checkpoint_dir)
 
         elif command == "generate":
             # Generate summaries from batches
-            generate()
+            generate(checkpoint_dir,output_dir)
 
         elif command == "generate_timebins":
             # Generate timebin summaries from timebin batches
-            generate_timebins_from_batches()
+            generate_timebins_from_batches(checkpoint_dir,output_dir)
         else:
             is_valid_process = False
             print("Unknown command:", command)

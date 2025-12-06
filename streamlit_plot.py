@@ -1,14 +1,15 @@
 from streamlit_modal import Modal
 import pandas as pd
 import streamlit as st
-from stoc import stoc
+from plotting.stoc import stoc
 import os
 
-from overall_analyzer import (
+from plotting.overall_analyzer import (
     show_overall_analysis,
+    plot_full_cross_heatmap_half
 )
 
-from individual_analyzer import (
+from plotting.individual_analyzer import (
     show_individual_report
 )
 
@@ -16,20 +17,22 @@ from PIL import Image
 
 @st.cache_data
 def load_summary_data():
-    df_sum = pd.read_csv("summary_bot.csv").rename(columns={"Duration": "Duration (ms)"})
-    df = pd.read_csv("summary_matchup.csv")
-    df_timebins = pd.read_csv("summary_action_timebins.csv")
-    df_collision_timebins = pd.read_csv("summary_collision_timebins.csv")
+    summarized_dir = "result"
+
+    df_sum = pd.read_csv(f"{summarized_dir}/summary_bot.csv").rename(columns={"Duration": "Duration (ms)"})
+    df = pd.read_csv(f"{summarized_dir}/summary_matchup.csv")
+    df_timebins = pd.read_csv(f"{summarized_dir}/summary_action_timebins.csv")
+    df_collision_timebins = pd.read_csv(f"{summarized_dir}/summary_collision_timebins.csv")
     return df_sum, df, df_timebins, df_collision_timebins
 
 def load_arena_data(dfsum):
     # Check if arena_heatmap directory exists
-    heatmap_dir = "analysis_output/arena_heatmaps"
+    arena_heatmaps_output = "result/arena_heatmaps"
 
-    if os.path.exists(heatmap_dir):
+    if os.path.exists(arena_heatmaps_output):
         # Get all bot directories
-        bot_dirs = [d for d in os.listdir(heatmap_dir)
-                   if os.path.isdir(os.path.join(heatmap_dir, d))]
+        bot_dirs = [d for d in os.listdir(arena_heatmaps_output)
+                   if os.path.isdir(os.path.join(arena_heatmaps_output, d))]
 
         # Sort bot directories by rank from dfsum
         if "Rank" in dfsum.columns and "Bot" in dfsum.columns:
@@ -45,7 +48,7 @@ def load_arena_data(dfsum):
             # Display heatmaps for each bot
             for bot_name in bot_dirs:
                 toc.h3(f"{bot_name} (#{bot_dirs.index(bot_name)+1})")
-                bot_dir = os.path.join(heatmap_dir, bot_name)
+                bot_dir = os.path.join(arena_heatmaps_output, bot_name)
 
                 # Create n columns for the n phases
                 cols = st.columns(len(phase_names))
@@ -75,12 +78,16 @@ def load_arena_data(dfsum):
                     dist_image = Image.open(dist_path)
                     st.image(dist_image, use_container_width=True)
 
+                st.markdown("**Full Configuration Analysis**")
+                fig = plot_full_cross_heatmap_half(df, bot_name=bot_name)
+                st.pyplot(fig)
+                
                 st.divider()
         else:
             st.warning("No bot heatmaps found in directory")
             st.info("Run: `python detailed_analyzer.py all` to generate heatmaps")
     else:
-        st.warning(f"Heatmap directory not found: {heatmap_dir}")
+        st.warning(f"Heatmap directory not found: {arena_heatmaps_output}")
         st.info("Run: `python detailed_analyzer.py all` to generate heatmaps for all bots")
 
 if __name__ == "__main__":
