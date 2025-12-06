@@ -8,7 +8,7 @@ from reportlab.lib.pagesizes import A4
 import plotly.io as pio
 import streamlit as st
 from scipy import stats
-from analyzer_config import (
+from plotting.analyzer_config import (
     get_bot_marker,
     get_bot_color,
     get_bot_linestyle,

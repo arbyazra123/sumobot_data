@@ -620,7 +620,7 @@ def create_summary_bot(matchup_summary):
     return bot_summary
 
 
-def generate_timebins_from_batches():
+def generate_timebins_from_batches(checkpoint_dir):
     """
     Generate timebin summaries from batched timebin checkpoints
     Loads batch files and creates final summaries
@@ -630,7 +630,7 @@ def generate_timebins_from_batches():
     print("=" * 60)
 
     # Load action timebin batches
-    action_batch_files = sorted(glob.glob("batched/action_timebins/batch_*.csv"))
+    action_batch_files = sorted(glob.glob(f"{checkpoint_dir}/action_timebins/batch_*.csv"))
     if action_batch_files:
         print(f"\n📂 Loading {len(action_batch_files)} action timebin batch files...")
         action_lazy_frames = [pl.scan_csv(f) for f in action_batch_files]
@@ -641,7 +641,7 @@ def generate_timebins_from_batches():
         summarize_action_timebins(action_timebin_df)
 
     # Load collision timebin batches
-    collision_batch_files = sorted(glob.glob("batched/collision_timebins/batch_*.csv"))
+    collision_batch_files = sorted(glob.glob(f"{checkpoint_dir}/collision_timebins/batch_*.csv"))
     if collision_batch_files:
         print(f"\n📂 Loading {len(collision_batch_files)} collision timebin batch files...")
         collision_lazy_frames = [pl.scan_csv(f) for f in collision_batch_files]
@@ -799,7 +799,7 @@ def summarize_collision_timebins(collision_fragment_df):
     return summary
 
 
-def generate():
+def generate(checkpoint_dir):
     """
     Generate summary files from batched checkpoints
     Similar to generator.py generate() function
@@ -813,10 +813,10 @@ def generate():
     print("=" * 60)
 
     # Load all batch files
-    batch_files = sorted(glob.glob("batched/batch_*.csv"))
+    batch_files = sorted(glob.glob(f"{checkpoint_dir}/batch_*.csv"))
 
     if not batch_files:
-        print("❌ No batch files found in 'batched/' directory")
+        print(f"❌ No batch files found in '{checkpoint_dir}/' directory")
         return None, None
 
     print(f"\n📂 Loading {len(batch_files)} batch files...")

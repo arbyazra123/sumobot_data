@@ -6,7 +6,6 @@ from glob import glob
 import shutil
 from tqdm import tqdm  # optional: pip install tqdm
 
-
 def extract_game_index(filename: str) -> int:
     """Extract numeric index from filename like 'game_001.json'."""
     match = re.search(r"game_(\d+)", filename)
