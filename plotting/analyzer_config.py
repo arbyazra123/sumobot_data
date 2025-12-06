@@ -44,8 +44,8 @@ DEFAULT_MARKER = "o"
 # Top 5 performers get solid lines, others get different styles
 BOT_LINESTYLE_BY_RANK = {
     1: "-",      # Solid - Best performer
-    2: "--",      # Solid - 2nd best
-    3: ":",      # Solid - 3rd best
+    2: "-",      # Solid - 2nd best
+    3: "-",      # Solid - 3rd best
     4: "-",      # Solid - 4th best
     5: "-",      # Solid - 5th best
     6: "--",     # Dashed
