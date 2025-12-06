@@ -242,19 +242,9 @@ def plot_time_related(summary, width=8, height=6):
         fig, ax = plt.subplots(figsize=(width, height))
         subset = grouped[grouped["ActInterval"] == interval]
 
-        # Plot bots in rank order
-        for bot in bot_order:
-            bot_data = subset[subset["Bot_L"] == bot]
-            if bot_data.empty:
-                continue
-            label = bot_data["BotWithRank"].iloc[0]
-            marker = get_bot_marker(bot)
-            color = get_bot_color(bot)
-            rank = rank_map.get(bot)
-            linestyle = get_bot_linestyle(rank) if rank is not None else "-"
-            ax.plot(bot_data["Timer"], bot_data["AvgDuration"],
-                   marker=marker, color=color, linestyle=linestyle, label=label,
-                   markersize=8, linewidth=2)
+        # Use plot_with_bot_markers for consistent styling
+        plot_with_bot_markers(ax, data=subset, x="Timer", y="AvgDuration",
+                            hue="BotWithRank", hue_order=bot_order_with_rank)
 
         ax.set_title(f"Avg {get_metric_name('MatchDur')} vs {get_metric_name('Timer')} ({get_metric_name('ActInterval')} = {interval})")
         ax.set_xlabel(f"{get_metric_name('Timer')} (s)")
@@ -560,7 +550,7 @@ def plot_action_timebins_intensity(
         raise ValueError("mode must be one of ['total','per_action','select']")
 
 
-def plot_full_cross_heatmap_half(df, bot_name="Bot_NN", key="WinRate_L", max_labels=40, lower_triangle=True):
+def plot_full_cross_heatmap_half(df, bot_name="Bot_NN", key="WinRate_L", max_labels=40):
     cfg_cols = ["Timer", "ActInterval", "Round", "SkillLeft", "SkillRight"]
     df_bot = df[df["Bot_L"] == bot_name].copy()
     
@@ -1595,7 +1585,7 @@ def prepare_correlation_data(df):
 
 
 def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
-                            alpha=0.95, figsize=(10, 8), add_jitter=False, add_per_bot_regression=False):
+                            alpha=0.95, figsize=(10, 8), add_per_bot_regression=False):
     """
     Create scatter plot with regression line and Pearson correlation.
 
@@ -1607,7 +1597,6 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
         color_by: Column to color points by (default: 'Bot')
         alpha: Transparency of scatter points
         figsize: Figure size tuple
-        add_jitter: If True, add jitter to x-axis for discrete variables
         add_per_bot_regression: If True, add regression line for each bot
 
     Returns:
@@ -1737,7 +1726,6 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         y_col='WinRate',
         title='Win Rate vs Action Interval\n(All Bots Combined)',
         figsize=(width, height),
-        add_jitter=False,
         add_per_bot_regression=True,alpha=alpha
     )
     if fig:
@@ -1756,7 +1744,6 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         y_col='WinRate',
         title=round_title,
         figsize=(width, height),
-        add_jitter=False,
         add_per_bot_regression=True,alpha=alpha
     )
     if fig:
@@ -1769,7 +1756,6 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         y_col='WinRate',
         title='Win Rate vs Timer Duration\n(All Bots Combined)',
         figsize=(width, height),
-        add_jitter=False,
         add_per_bot_regression=True,alpha=alpha
     )
     if fig:
@@ -1786,7 +1772,6 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
             y_col='WinRate',
             title='Win Rate vs Skill Type (1=Stone, 2=Boost)\n(All Bots Combined)',
             figsize=(width, height),
-            add_jitter=False,
             add_per_bot_regression=True,alpha=alpha
         )
         if fig:
