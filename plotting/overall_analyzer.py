@@ -1533,6 +1533,7 @@ def plot_collision_timebins_intensity(
 def prepare_correlation_data(df):
     """
     Prepare data for correlation analysis by combining left and right perspectives.
+    Action counts are normalized to averages per game.
 
     Args:
         df: Summary matchup dataframe
@@ -1547,12 +1548,13 @@ def prepare_correlation_data(df):
     df_left['Actions'] = df_left['ActionCounts_L']
     df_left['Collisions'] = df_left['Collisions_L']
     df_left['Duration'] = df_left['Duration_L']
-    df_left['Accelerate_Act'] = df_left['Accelerate_Act_L']
-    df_left['TurnLeft_Act'] = df_left['TurnLeft_Act_L']
-    df_left['TurnRight_Act'] = df_left['TurnRight_Act_L']
-    df_left['Dash_Act'] = df_left['Dash_Act_L']
-    df_left['SkillBoost_Act'] = df_left['SkillBoost_Act_L']
-    df_left['SkillStone_Act'] = df_left['SkillStone_Act_L']
+    # Normalize action counts by number of games to get average per game
+    df_left['Accelerate_Act'] = df_left['Accelerate_Act_L'] / df_left['Games']
+    df_left['TurnLeft_Act'] = df_left['TurnLeft_Act_L'] / df_left['Games']
+    df_left['TurnRight_Act'] = df_left['TurnRight_Act_L'] / df_left['Games']
+    df_left['Dash_Act'] = df_left['Dash_Act_L'] / df_left['Games']
+    df_left['SkillBoost_Act'] = df_left['SkillBoost_Act_L'] / df_left['Games']
+    df_left['SkillStone_Act'] = df_left['SkillStone_Act_L'] / df_left['Games']
     df_left['Accelerate_Dur'] = df_left['Accelerate_Dur_L']
     df_left['TurnLeft_Dur'] = df_left['TurnLeft_Dur_L']
     df_left['TurnRight_Dur'] = df_left['TurnRight_Dur_L']
@@ -1567,12 +1569,13 @@ def prepare_correlation_data(df):
     df_right['Actions'] = df_right['ActionCounts_R']
     df_right['Collisions'] = df_right['Collisions_R']
     df_right['Duration'] = df_right['Duration_R']
-    df_right['Accelerate_Act'] = df_right['Accelerate_Act_R']
-    df_right['TurnLeft_Act'] = df_right['TurnLeft_Act_R']
-    df_right['TurnRight_Act'] = df_right['TurnRight_Act_R']
-    df_right['Dash_Act'] = df_right['Dash_Act_R']
-    df_right['SkillBoost_Act'] = df_right['SkillBoost_Act_R']
-    df_right['SkillStone_Act'] = df_right['SkillStone_Act_R']
+    # Normalize action counts by number of games to get average per game
+    df_right['Accelerate_Act'] = df_right['Accelerate_Act_R'] / df_right['Games']
+    df_right['TurnLeft_Act'] = df_right['TurnLeft_Act_R'] / df_right['Games']
+    df_right['TurnRight_Act'] = df_right['TurnRight_Act_R'] / df_right['Games']
+    df_right['Dash_Act'] = df_right['Dash_Act_R'] / df_right['Games']
+    df_right['SkillBoost_Act'] = df_right['SkillBoost_Act_R'] / df_right['Games']
+    df_right['SkillStone_Act'] = df_right['SkillStone_Act_R'] / df_right['Games']
     df_right['Accelerate_Dur'] = df_right['Accelerate_Dur_R']
     df_right['TurnLeft_Dur'] = df_right['TurnLeft_Dur_R']
     df_right['TurnRight_Dur'] = df_right['TurnRight_Dur_R']
@@ -1664,10 +1667,6 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
                     bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                     bot_y_line = bot_slope * bot_x_line + bot_intercept
 
-                    # Clip regression line to valid range [0, 1] for WinRate
-                    if y_col == 'WinRate' or 'WinRate' in y_col:
-                        bot_y_line = np.clip(bot_y_line, 0, 1)
-
                     ax.plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=color, alpha=0.7)
     else:
         ax.scatter(plot_data['x_jittered'], plot_data[y_col], alpha=alpha, s=60,
@@ -1677,10 +1676,6 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
     slope, intercept = np.polyfit(x_values, plot_data[y_col], 1)
     x_line = np.linspace(x_values.min(), x_values.max(), 100)
     y_line = slope * x_line + intercept
-
-    # Clip regression line to valid range [0, 1] for WinRate
-    if y_col == 'WinRate' or 'WinRate' in y_col:
-        y_line = np.clip(y_line, 0, 1)
 
     ax.plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5, label=f'Overall Regression')
 
@@ -1695,6 +1690,10 @@ def plot_correlation_scatter(data, x_col, y_col, title, color_by='Bot',
     ax.set_ylabel(get_metric_name(y_col), fontsize=12, fontweight='bold')
     ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
     ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Set y-axis limits to valid range [0, 1] for WinRate (crop frame instead of clipping line)
+    if y_col == 'WinRate' or 'WinRate' in y_col:
+        ax.set_ylim(0, 1)
 
     # Legend - position below x-axis
     if color_by in plot_data.columns:
@@ -1900,16 +1899,12 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                 bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                 bot_y_line = bot_slope * bot_x_line + bot_intercept
-                # Clip to valid WinRate range [0, 1]
-                bot_y_line = np.clip(bot_y_line, 0, 1)
                 axes[idx].plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=color, alpha=0.7)
 
         # Overall regression line
         slope, intercept = np.polyfit(plot_data[action], plot_data['WinRate'], 1)
         x_line = np.linspace(plot_data[action].min(), plot_data[action].max(), 100)
         y_line = slope * x_line + intercept
-        # Clip to valid WinRate range [0, 1]
-        y_line = np.clip(y_line, 0, 1)
         axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5)
 
         # Correlation info
@@ -1922,6 +1917,9 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].set_ylabel(get_metric_name('WinRate'), fontsize=10)
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {get_metric_name(action)}', fontsize=11, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
+
+        # Set y-axis limits to valid range [0, 1] for WinRate (crop frame instead of clipping line)
+        axes[idx].set_ylim(0, 1)
 
     # Add legend below x-axis with rank title if rankings are available
     handles, labels = [], []
@@ -1998,16 +1996,12 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
                 bot_slope, bot_intercept = np.polyfit(bot_x, bot_y, 1)
                 bot_x_line = np.linspace(bot_x.min(), bot_x.max(), 100)
                 bot_y_line = bot_slope * bot_x_line + bot_intercept
-                # Clip to valid WinRate range [0, 1]
-                bot_y_line = np.clip(bot_y_line, 0, 1)
                 axes[idx].plot(bot_x_line, bot_y_line, '--', linewidth=1.5, color=color, alpha=0.7)
 
         # Overall regression line
         slope, intercept = np.polyfit(plot_data[action], plot_data['WinRate'], 1)
         x_line = np.linspace(plot_data[action].min(), plot_data[action].max(), 100)
         y_line = slope * x_line + intercept
-        # Clip to valid WinRate range [0, 1]
-        y_line = np.clip(y_line, 0, 1)
         axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5)
 
         # Correlation info
@@ -2020,6 +2014,9 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].set_ylabel(get_metric_name('WinRate'), fontsize=10)
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {get_metric_name(action)}', fontsize=11, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
+
+        # Set y-axis limits to valid range [0, 1] for WinRate (crop frame instead of clipping line)
+        axes[idx].set_ylim(0, 1)
 
     # Add legend below x-axis with rank title if rankings are available
     handles, labels = [], []
@@ -2096,8 +2093,6 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
             slope, intercept = np.polyfit(plot_data[col_type], plot_data['WinRate'], 1)
             x_line = np.linspace(plot_data[col_type].min(), plot_data[col_type].max(), 100)
             y_line = slope * x_line + intercept
-            # Clip to valid WinRate range [0, 1]
-            y_line = np.clip(y_line, 0, 1)
             axes[idx].plot(x_line, y_line, '-', color=get_theme_color('regression_line'), linewidth=2.5, label='Overall Regression')
 
         # Correlation info
@@ -2111,6 +2106,9 @@ def plot_all_correlations(df, width=10, height=8,alpha=0.2):
         axes[idx].set_title(f'{get_metric_name("WinRate")} vs {collision_labels[col_type]}',
                            fontsize=12, fontweight='bold')
         axes[idx].grid(True, alpha=0.3, linestyle='--')
+
+        # Set y-axis limits to valid range [0, 1] for WinRate (crop frame instead of clipping line)
+        axes[idx].set_ylim(0, 1)
 
     # Add legend below x-axis with rank title if rankings are available
     handles, labels = [], []

@@ -200,7 +200,6 @@ def convert_all_configs(simulation_root: str, output_root: str):
         print(f"DEBUG: config_folder = {config_folder}")
         print(f"DEBUG: parent_name = {parent_name}")
         print(f"DEBUG: config_name = {config_name}")
-
         
         # Create output folder with parent structure if it doesn't exist
         output_folder = os.path.join(output_root, parent_name, config_name)
